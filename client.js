@@ -556,7 +556,7 @@ async function copyDemoInvitation() {
   const code = state.page === "invite-ready" ? "P8L4" : currentRelation()?.inviteCode;
   if (!code) return;
   try {
-    await navigator.clipboard.writeText(`https://genyikou.test/join/${code}`);
+    await navigator.clipboard.writeText(`https://genyikou.click/join/${code}`);
     showToast("演示链接已复制，暂不能真实加入");
   } catch {
     showToast("未能复制，可以手动选中链接");
@@ -1084,7 +1084,7 @@ function waitingMemberTemplate() {
   const code = escapeHtml(relation?.inviteCode || "M7Q2");
   return `<section class="flow-page flow-page--invitation">
     ${flowLead("邀请已准备好", "不用在这里等，朋友加入后会出现在「碰」里。")}
-    <div class="invite-ticket"><small>${escapeHtml(relation?.note || "邀请朋友")}</small><strong>genyikou.test/join/${code}</strong><span>备用邀请码 · ${code}</span></div>
+    <div class="invite-ticket"><small>${escapeHtml(relation?.note || "邀请朋友")}</small><strong>genyikou.click/join/${code}</strong><span>备用邀请码 · ${code}</span></div>
     <p class="field-note">演示邀请，暂不能用于真实加入</p>
     <button class="flow-secondary with-icon invitation-copy" data-action="copy-invite">${sketchIcon("copy")}复制邀请</button>
     <button class="flow-primary" data-action="complete-invitation">完成，进入首页</button>
@@ -1157,7 +1157,7 @@ function inviteReadyTemplate() {
   const candidate = state.draftCandidate || "小亮";
   return `<section class="flow-page">
     ${flowLead(`可以邀请${escapeHtml(candidate)}了`)}
-    <div class="invite-ticket"><small>${escapeHtml(candidate)}的邀请链接</small><strong>genyikou.test/join/P8L4</strong><span>备用邀请码 · P8L4</span></div>
+    <div class="invite-ticket"><small>${escapeHtml(candidate)}的邀请链接</small><strong>genyikou.click/join/P8L4</strong><span>备用邀请码 · P8L4</span></div>
     <button class="flow-primary with-icon" data-action="copy-invite">${sketchIcon("copy")}复制邀请</button>
     <button class="text-action" data-action="finish-invite-ready">稍后</button>
   </section>`;

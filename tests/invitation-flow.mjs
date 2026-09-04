@@ -128,7 +128,7 @@ vm.runInContext(`
   act("finish-create-relation");
 `, context);
 await vm.runInContext("copyDemoInvitation()", context);
-assert.match(copiedText, /^https:\/\/genyikou\.test\/join\/G\d+$/);
+assert.match(copiedText, /^https:\/\/genyikou\.click\/join\/G\d+$/);
 assert.equal(toast.textContent, "演示链接已复制，暂不能真实加入");
 context.navigator.clipboard.writeText = async () => { throw new Error("Clipboard unavailable"); };
 await vm.runInContext("copyDemoInvitation()", context);
