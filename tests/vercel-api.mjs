@@ -8,6 +8,7 @@ const sendHandler = (await import("../api/auth/send-email-code.mjs")).default;
 const verifyHandler = (await import("../api/auth/verify-email-code.mjs")).default;
 const sessionHandler = (await import("../api/auth/session.mjs")).default;
 const logoutHandler = (await import("../api/auth/logout.mjs")).default;
+const appStateHandler = (await import("../api/app-state.mjs")).default;
 const email = "vercel-test@example.com";
 
 function request(path, method = "GET", body, token) {
@@ -48,6 +49,9 @@ const sessionResponse = await sessionHandler.fetch(request("/api/auth/session", 
 const session = await sessionResponse.json();
 assert.equal(sessionResponse.status, 200);
 assert.equal(session.user.id, verified.user.id);
+
+const appStateWithoutDatabase = await appStateHandler.fetch(request("/api/app-state", "GET", null, verified.token));
+assert.equal(appStateWithoutDatabase.status, 503);
 
 const logoutResponse = await logoutHandler.fetch(request("/api/auth/logout", "POST"));
 assert.equal(logoutResponse.status, 200);

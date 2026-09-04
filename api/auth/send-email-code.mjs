@@ -9,6 +9,7 @@ import {
   normalizeEmail,
   requestJson
 } from "../_auth.mjs";
+import { allowVerificationEmail } from "../_db.mjs";
 
 export default {
   async fetch(request) {
@@ -17,6 +18,15 @@ export default {
       const body = await requestJson(request);
       const email = normalizeEmail(body.email);
       if (!email) return json({ ok: false, message: "请输入正确的邮箱" }, 400);
+
+      const rateLimit = await allowVerificationEmail(email);
+      if (!rateLimit.allowed) {
+        return json({
+          ok: false,
+          message: "发送得有点快，稍后再试",
+          retryAfterSeconds: rateLimit.retryAfterSeconds
+        }, 429);
+      }
 
       const code = makeVerificationCode();
       const delivery = await deliverVerificationCode(email, code);

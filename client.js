@@ -86,7 +86,7 @@ const people = {
   an: { id: "an", name: "阿安", relation: "远程喝水搭子", cupId: "cup-05", colors: { ...cupById["cup-05"].defaults } }
 };
 
-const incomingIds = ["liang", "hong", "ming"];
+let incomingIds = ["liang", "hong", "ming"];
 
 // Prototype data only. New registrations start without these sample relations.
 function demoRelations() {
@@ -137,6 +137,8 @@ let state = {
   authCooldownUntil: 0,
   draftRelationNote: "",
   draftInviteCode: "",
+  invitePreview: null,
+  incomingEvents: {},
   draftCandidate: "",
   draftName: "小满",
   entryIntent: "create",
@@ -152,7 +154,13 @@ const authSessionKey = "genyikou-auth-session-v2";
 let authToken = "";
 let authAccount = null;
 let authNeedsOnboarding = false;
+let cloudDataAvailable = false;
 let authCooldownTimer;
+let serverSyncTimer;
+let lastResponseSignature = "";
+const initialInviteCode = typeof location !== "undefined"
+  ? (location.pathname.match(/^\/join\/([A-Z0-9]{4,10})\/?$/i)?.[1] || "").toUpperCase()
+  : "";
 const persistenceActions = new Set([
   "save-cup",
   "confirm-identity",
@@ -347,6 +355,7 @@ function clearAuthSession() {
   authToken = "";
   authAccount = null;
   authNeedsOnboarding = false;
+  cloudDataAvailable = false;
   if (typeof localStorage !== "undefined") localStorage.removeItem(authSessionKey);
 }
 
@@ -356,6 +365,10 @@ function resetAccountData() {
   people.me.cupId = "cup-01";
   people.me.colors = { ...cupById["cup-01"].defaults };
   state.relations = [];
+  incomingIds = [];
+  state.incomingEvents = {};
+  state.responseIds = [];
+  state.invitePreview = null;
   state.selectedRelationId = null;
   state.memberSettings = defaultMemberSettings();
   state.notifications = { drink: true, response: true, relation: true };
@@ -393,6 +406,92 @@ async function authRequest(path, options = {}) {
   const result = await response.json().catch(() => ({ ok: false, message: "服务暂时不可用" }));
   if (!response.ok) throw new Error(result.message || "请求没有完成");
   return result;
+}
+
+function profilePayload() {
+  return {
+    name: people.me.name,
+    cupId: people.me.cupId,
+    colors: sanitizeCupColors(people.me.cupId, people.me.colors)
+  };
+}
+
+function applyServerState(result, { chooseHomeMode = false } = {}) {
+  if (!result?.ok) return false;
+  if (result.profile && cupById[result.profile.cupId]) {
+    people.me.name = String(result.profile.name || people.me.name);
+    people.me.cupId = result.profile.cupId;
+    people.me.colors = sanitizeCupColors(result.profile.cupId, result.profile.colors);
+    state.identityColorsByCup[people.me.cupId] = { ...people.me.colors };
+    state.selectedCupId = people.me.cupId;
+    state.draftName = people.me.name;
+  }
+  for (const person of result.people || []) {
+    if (!person?.id || person.id === "me" || !cupById[person.cupId]) continue;
+    people[person.id] = {
+      ...person,
+      colors: sanitizeCupColors(person.cupId, person.colors),
+      relation: person.relation || "一起喝"
+    };
+    state.memberSettings[person.id] ||= { note: "", receive: true, send: true };
+  }
+  state.relations = Array.isArray(result.relations) ? result.relations : [];
+  incomingIds = Array.isArray(result.incomingIds) ? result.incomingIds.filter(id => people[id]) : [];
+  state.incomingEvents = result.incomingEvents && typeof result.incomingEvents === "object" ? result.incomingEvents : {};
+  state.responseIds = Array.isArray(result.responseIds) ? result.responseIds.filter(id => people[id]) : [];
+  state.selectedIds = [...incomingIds];
+  if (!state.relations.some(relation => relation.id === state.selectedRelationId)) {
+    state.selectedRelationId = state.relations[0]?.id || null;
+  }
+  const responseSignature = [...state.responseIds].sort().join(",");
+  if (chooseHomeMode && !state.page && state.activeTab === "drink") {
+    if (responseSignature && responseSignature !== lastResponseSignature) state.homeMode = "responded";
+    else if (incomingIds.length) state.homeMode = "incoming";
+    else if (state.homeMode === "incoming" || state.homeMode === "responded") state.homeMode = "calm";
+  }
+  lastResponseSignature = responseSignature;
+  return Boolean(result.profile);
+}
+
+async function appRequest(action, payload = {}) {
+  return authRequest("/api/app-state", {
+    method: "POST",
+    body: JSON.stringify({ action, ...payload })
+  });
+}
+
+async function syncServerState(options = {}) {
+  if (!authToken || !cloudDataAvailable || typeof fetch !== "function") return false;
+  const result = await authRequest("/api/app-state");
+  return applyServerState(result, options);
+}
+
+async function saveProfileRemote() {
+  if (!authToken || !authAccount || !cloudDataAvailable) return false;
+  const result = await appRequest("saveProfile", profilePayload());
+  applyServerState(result);
+  authNeedsOnboarding = false;
+  saveAuthSession(authToken, authAccount, false);
+  return true;
+}
+
+function startServerSync() {
+  if (serverSyncTimer || !authToken || !cloudDataAvailable || typeof setInterval !== "function") return;
+  serverSyncTimer = setInterval(async () => {
+    if (typeof document !== "undefined" && document.hidden) return;
+    try {
+      await syncServerState({ chooseHomeMode: true });
+      render();
+    } catch {
+      // Keep the last known state when the network is temporarily unavailable.
+    }
+  }, 30_000);
+}
+
+async function openInviteFromUrl() {
+  if (!initialInviteCode || !authToken || !cloudDataAvailable || authNeedsOnboarding) return;
+  state.draftInviteCode = initialInviteCode;
+  await previewInviteRemote();
 }
 
 async function sendLoginCode() {
@@ -435,13 +534,28 @@ async function verifyLoginCode() {
       method: "POST",
       body: JSON.stringify({ email, code, challenge: state.authChallenge })
     });
+    cloudDataAvailable = result.cloudDataAvailable === true;
     saveAuthSession(result.token, result.user, result.isNewUser);
-    const restored = !result.isNewUser && restorePersistentData();
-    if (restored) {
+    const restored = restorePersistentData();
+    let serverReady = false;
+    if (result.isNewUser && restored) {
+      try { serverReady = await saveProfileRemote(); } catch { serverReady = false; }
+    } else if (!result.isNewUser) {
+      try { serverReady = await syncServerState(); } catch { serverReady = false; }
+    }
+    if (serverReady || (!result.isNewUser && restored)) {
+      authNeedsOnboarding = false;
+      saveAuthSession(result.token, result.user, false);
       enterHome();
+      startServerSync();
+      await openInviteFromUrl();
       showToast(`欢迎回来，${people.me.name}`);
     } else {
       resetAccountData();
+      if (initialInviteCode) {
+        state.entryIntent = "join";
+        state.draftInviteCode = initialInviteCode;
+      }
       saveAuthSession(result.token, result.user, true);
       state.pageHistory = [];
       state.page = "entry";
@@ -464,6 +578,27 @@ async function validateAuthSession() {
   try {
     const result = await authRequest("/api/auth/session");
     authAccount = result.user;
+    cloudDataAvailable = result.cloudDataAvailable === true;
+    let serverReady = false;
+    try {
+      serverReady = await syncServerState({ chooseHomeMode: true });
+      if (!serverReady && !authNeedsOnboarding && restorePersistentData()) {
+        serverReady = await saveProfileRemote();
+      }
+    } catch {
+      // The cached profile remains usable while the database or network recovers.
+    }
+    if (serverReady) {
+      authNeedsOnboarding = false;
+      saveAuthSession(authToken, authAccount, false);
+      startServerSync();
+      await openInviteFromUrl();
+      render();
+    } else if (authNeedsOnboarding) {
+      state.page = "entry";
+      state.pageHistory = [];
+      render();
+    }
   } catch (error) {
     if (/失效/.test(error.message || "")) {
       clearAuthSession();
@@ -484,6 +619,9 @@ async function signOutAccount() {
     // 即使网络暂不可用，也先退出这台设备上的账号。
   }
   clearAuthSession();
+  cloudDataAvailable = false;
+  clearInterval(serverSyncTimer);
+  serverSyncTimer = undefined;
   resetAccountData();
   state.authEmail = "";
   state.authCode = "";
@@ -557,10 +695,51 @@ async function copyDemoInvitation() {
   if (!code) return;
   try {
     await navigator.clipboard.writeText(`https://genyikou.click/join/${code}`);
-    showToast("演示链接已复制，暂不能真实加入");
+    showToast(cloudDataAvailable ? "邀请链接已复制" : "演示链接已复制，暂不能真实加入");
   } catch {
     showToast("未能复制，可以手动选中链接");
   }
+}
+
+async function previewInviteRemote() {
+  const code = String(state.draftInviteCode || "").trim().toUpperCase();
+  if (!code) return false;
+  try {
+    const result = await appRequest("previewInvite", { code });
+    state.invitePreview = result.preview;
+    for (const person of result.preview?.members || []) {
+      if (!person?.id || !cupById[person.cupId]) continue;
+      people[person.id] = { ...person, relation: "邀请你一起喝", colors: sanitizeCupColors(person.cupId, person.colors) };
+    }
+    navigateTo("invite-preview");
+    return true;
+  } catch (error) {
+    showToast(error.message || "这个邀请码不可用");
+    return false;
+  }
+}
+
+async function acceptInviteRemote() {
+  const code = state.invitePreview?.inviteCode || state.draftInviteCode;
+  const result = await appRequest("acceptInvite", { code });
+  applyServerState(result);
+  state.selectedRelationId = result.relationId || state.selectedRelationId;
+  state.invitePreview = null;
+  state.page = null;
+  state.pageHistory = [];
+  state.activeTab = "connect";
+}
+
+async function updateCurrentRelationRemote() {
+  const relation = currentRelation();
+  if (!relation || !authToken || !cloudDataAvailable) return;
+  const result = await appRequest("updateRelation", {
+    relationId: relation.id,
+    note: relation.note,
+    receive: relation.receive,
+    send: relation.send
+  });
+  applyServerState(result);
 }
 
 function render() {
@@ -1069,10 +1248,13 @@ function joinRelationTemplate() {
 }
 
 function invitePreviewTemplate() {
+  const previewMembers = state.invitePreview?.members || [];
+  const memberIds = previewMembers.length ? previewMembers.map(member => member.id) : ["ming", "hong"];
+  const leadName = people[memberIds[0]]?.name || "朋友";
   return `<section class="flow-page">
-    ${flowLead("和小明一起喝水？", "加入后，将与下面两位成员互相接收喝水信号。")}
+    ${flowLead(`和${escapeHtml(leadName)}一起喝水？`, `加入后，将与这里的 ${memberIds.length} 位成员互相接收喝水信号。`)}
     <div class="people-preview">
-      ${["ming", "hong"].map(id => memberPreview(id)).join("")}
+      ${memberIds.map(id => memberPreview(id)).join("")}
     </div>
     <div class="notice-box"><strong>大家都一样</strong><p>没有群主，信号怎么收发由自己决定。</p></div>
     <div class="flow-actions"><button class="flow-secondary" data-action="decline-invite">暂不加入</button><button class="flow-primary" data-action="accept-invite">接受邀请</button></div>
@@ -1085,7 +1267,7 @@ function waitingMemberTemplate() {
   return `<section class="flow-page flow-page--invitation">
     ${flowLead("邀请已准备好", "不用在这里等，朋友加入后会出现在「碰」里。")}
     <div class="invite-ticket"><small>${escapeHtml(relation?.note || "邀请朋友")}</small><strong>genyikou.click/join/${code}</strong><span>备用邀请码 · ${code}</span></div>
-    <p class="field-note">演示邀请，暂不能用于真实加入</p>
+    ${cloudDataAvailable ? "" : `<p class="field-note">演示邀请，暂不能用于真实加入</p>`}
     <button class="flow-secondary with-icon invitation-copy" data-action="copy-invite">${sketchIcon("copy")}复制邀请</button>
     <button class="flow-primary" data-action="complete-invitation">完成，进入首页</button>
     <div class="flow-list">
@@ -1582,6 +1764,10 @@ async function handleAction(event) {
     people.me.cupId = editor.selectedCupId;
     people.me.colors = { ...editor.identityColorsByCup[editor.selectedCupId] };
     state.identityColorsByCup[people.me.cupId] = { ...people.me.colors };
+    if (cloudDataAvailable) {
+      try { await saveProfileRemote(); }
+      catch (error) { showToast(error.message || "杯子暂时没有同步"); }
+    }
     closeCupEditor();
     showToast("杯子已更新");
   }
@@ -1591,6 +1777,14 @@ async function handleAction(event) {
     if (name) people.me.name = name;
     people.me.cupId = state.selectedCupId;
     people.me.colors = { ...state.identityColorsByCup[state.selectedCupId] };
+    if (cloudDataAvailable) {
+      try { await saveProfileRemote(); }
+      catch (error) {
+        showToast(error.message || "身份暂时没有保存");
+        render();
+        return;
+      }
+    }
     if (authAccount && authToken) saveAuthSession(authToken, authAccount, false);
     navigateTo("activation-install");
   }
@@ -1621,6 +1815,7 @@ async function handleAction(event) {
       state.notifications.response = false;
       state.notifications.relation = false;
     }
+    startServerSync();
     navigateTo(state.entryIntent === "join" ? "join-relation" : "create-relation");
   }
   else if (action === "drink") {
@@ -1632,6 +1827,15 @@ async function handleAction(event) {
     state.selectorOpen = false;
     state.demoPanel = false;
     beginDrinkFeedback();
+    if (cloudDataAvailable) {
+      try {
+        const result = await appRequest("sendDrink");
+        state.lastDrinkShared = result.shared === true;
+      } catch (error) {
+        state.lastDrinkShared = false;
+        showToast(error.message || "这一口暂时没有发出去");
+      }
+    }
   }
   else if (action === "close-selector") {
     state.selectorOpen = false;
@@ -1655,10 +1859,22 @@ async function handleAction(event) {
   else if (action === "finish-create-relation") {
     const note = state.draftRelationNote.trim();
     if (!note || state.page !== "create-relation") return;
-    const number = state.nextInvitationNumber++;
-    const id = `invitation-${number}`;
-    state.relations.push({ id, note, status: "pending", memberIds: ["me"], inviteCode: `G${String(number).padStart(4, "0")}`, receive: true, send: true });
-    state.selectedRelationId = id;
+    if (cloudDataAvailable) {
+      try {
+        const result = await appRequest("createRelation", { note });
+        applyServerState(result);
+        state.selectedRelationId = result.relationId;
+      } catch (error) {
+        showToast(error.message || "邀请暂时没有创建");
+        render();
+        return;
+      }
+    } else {
+      const number = state.nextInvitationNumber++;
+      const id = `invitation-${number}`;
+      state.relations.push({ id, note, status: "pending", memberIds: ["me"], inviteCode: `G${String(number).padStart(4, "0")}`, receive: true, send: true });
+      state.selectedRelationId = id;
+    }
     replacePage("waiting-member");
   }
   else if (action === "complete-invitation") enterHome();
@@ -1675,22 +1891,34 @@ async function handleAction(event) {
     showToast("演示：小明已加入");
   }
   else if (action === "preview-invite") {
-    const isOwnInvite = state.relations.some(relation => relation.inviteCode === state.draftInviteCode.trim().toUpperCase());
-    if (isOwnInvite) showToast("这是你自己的邀请，发给朋友就好");
-    else navigateTo("invite-preview");
+    if (cloudDataAvailable) await previewInviteRemote();
+    else {
+      const isOwnInvite = state.relations.some(relation => relation.inviteCode === state.draftInviteCode.trim().toUpperCase());
+      if (isOwnInvite) showToast("这是你自己的邀请，发给朋友就好");
+      else navigateTo("invite-preview");
+    }
   }
   else if (action === "simulate-invalid-code") showToast("这个邀请码不可用");
   else if (action === "accept-invite") {
-    let relation = state.relations.find(item => item.id === "inbound-demo");
-    if (!relation) {
-      relation = { id: "inbound-demo", note: "小明、小红", status: "active", memberIds: ["me", "ming", "hong"], receive: true, send: true };
-      state.relations.push(relation);
+    if (cloudDataAvailable) {
+      try {
+        await acceptInviteRemote();
+        showToast("已加入");
+      } catch (error) {
+        showToast(error.message || "暂时没有加入");
+      }
+    } else {
+      let relation = state.relations.find(item => item.id === "inbound-demo");
+      if (!relation) {
+        relation = { id: "inbound-demo", note: "小明、小红", status: "active", memberIds: ["me", "ming", "hong"], receive: true, send: true };
+        state.relations.push(relation);
+      }
+      state.selectedRelationId = relation.id;
+      state.page = null;
+      state.pageHistory = [];
+      state.activeTab = "connect";
+      showToast("已加入");
     }
-    state.selectedRelationId = relation.id;
-    state.page = null;
-    state.pageHistory = [];
-    state.activeTab = "connect";
-    showToast("已加入");
   }
   else if (action === "decline-invite") {
     goBack();
@@ -1702,13 +1930,26 @@ async function handleAction(event) {
     const input = document.querySelector("#edit-relation-note-input");
     const relation = currentRelation();
     if (input?.value.trim() && relation) relation.note = input.value.trim();
+    if (cloudDataAvailable) {
+      try { await updateCurrentRelationRemote(); }
+      catch (error) { showToast(error.message || "备注暂时没有同步"); }
+    }
     goBack();
     showToast("备注已保存，仅自己可见");
   }
   else if (action === "cancel-waiting-relation") {
     const relation = currentRelation();
     if (!relation || relation.status !== "pending") return;
-    state.relations = state.relations.filter(item => item.id !== relation.id);
+    if (cloudDataAvailable) {
+      try {
+        const result = await appRequest("removeRelation", { relationId: relation.id });
+        applyServerState(result);
+      } catch (error) {
+        showToast(error.message || "邀请暂时没有取消");
+        render();
+        return;
+      }
+    } else state.relations = state.relations.filter(item => item.id !== relation.id);
     state.selectedRelationId = null;
     state.page = null;
     state.pageHistory = [];
@@ -1743,8 +1984,20 @@ async function handleAction(event) {
     state.memberEditDraft = { memberId, note: settings.note, receive: settings.receive, send: settings.send };
     navigateTo("member-detail");
   }
-  else if (action === "toggle-relation-receive" && currentRelation()) currentRelation().receive = !currentRelation().receive;
-  else if (action === "toggle-relation-send" && currentRelation()) currentRelation().send = !currentRelation().send;
+  else if (action === "toggle-relation-receive" && currentRelation()) {
+    currentRelation().receive = !currentRelation().receive;
+    if (cloudDataAvailable) {
+      try { await updateCurrentRelationRemote(); }
+      catch (error) { showToast(error.message || "设置暂时没有同步"); }
+    }
+  }
+  else if (action === "toggle-relation-send" && currentRelation()) {
+    currentRelation().send = !currentRelation().send;
+    if (cloudDataAvailable) {
+      try { await updateCurrentRelationRemote(); }
+      catch (error) { showToast(error.message || "设置暂时没有同步"); }
+    }
+  }
   else if (action === "toggle-member-receive" && state.memberEditDraft) state.memberEditDraft.receive = !state.memberEditDraft.receive;
   else if (action === "toggle-member-send" && state.memberEditDraft) state.memberEditDraft.send = !state.memberEditDraft.send;
   else if (action === "save-member-settings") {
@@ -1760,7 +2013,16 @@ async function handleAction(event) {
   }
   else if (action === "leave-relation") navigateTo("leave-relation");
   else if (action === "confirm-leave-relation") {
-    state.relations = state.relations.filter(relation => relation.id !== state.selectedRelationId);
+    if (cloudDataAvailable) {
+      try {
+        const result = await appRequest("removeRelation", { relationId: state.selectedRelationId });
+        applyServerState(result);
+      } catch (error) {
+        showToast(error.message || "暂时没有退出");
+        render();
+        return;
+      }
+    } else state.relations = state.relations.filter(relation => relation.id !== state.selectedRelationId);
     state.selectedRelationId = null;
     state.page = null;
     state.pageHistory = [];
@@ -1785,6 +2047,17 @@ async function handleAction(event) {
   else if (action === "continue-delete") navigateTo("delete-confirm");
   else if (action === "continue-delete-final") navigateTo("delete-final");
   else if (action === "finish-delete") {
+    if (cloudDataAvailable) {
+      try { await appRequest("deleteAccount"); }
+      catch (error) {
+        showToast(error.message || "账户暂时没有注销");
+        render();
+        return;
+      }
+      clearAuthSession();
+      clearInterval(serverSyncTimer);
+      serverSyncTimer = undefined;
+    }
     state.relations = [];
     state.selectedRelationId = null;
     replacePage("delete-complete");
@@ -1844,7 +2117,7 @@ function toggleSelectedPerson(id) {
   render();
 }
 
-function confirmFollow() {
+async function confirmFollow() {
   const availableIds = availableIncomingIds();
   const ids = state.selectorOpen ? state.selectedIds.filter(id => availableIds.includes(id)) : availableIds;
   if (!ids.length) return;
@@ -1852,6 +2125,18 @@ function confirmFollow() {
   state.homeMode = "followed";
   state.selectorOpen = false;
   render();
+  if (cloudDataAvailable) {
+    try {
+      const result = await appRequest("respondDrink", { senderIds: ids });
+      applyServerState(result);
+      state.followedIds = ids;
+      state.homeMode = "followed";
+      render();
+    } catch (error) {
+      showToast(error.message || "这一口暂时没有回应出去");
+      return;
+    }
+  }
   showToast("已跟一口");
 }
 
@@ -1894,6 +2179,15 @@ else {
 }
 
 document.addEventListener?.("visibilitychange", syncBubbleMotion);
+document.addEventListener?.("visibilitychange", async () => {
+  if (document.hidden || !authToken || !cloudDataAvailable) return;
+  try {
+    await syncServerState({ chooseHomeMode: true });
+    render();
+  } catch {
+    // Keep cached UI visible until the next successful sync.
+  }
+});
 if (typeof matchMedia === "function") {
   matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", syncBubbleMotion);
 }

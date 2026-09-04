@@ -6,6 +6,7 @@ import {
   requestJson,
   verifyEmailChallenge
 } from "../_auth.mjs";
+import { ensureUser } from "../_db.mjs";
 
 export default {
   async fetch(request) {
@@ -20,7 +21,13 @@ export default {
       }
 
       const session = createSession(email);
-      return json({ ok: true, ...session, isNewUser: false });
+      const databaseUser = await ensureUser(session.user);
+      return json({
+        ok: true,
+        ...session,
+        cloudDataAvailable: databaseUser.configured,
+        isNewUser: databaseUser.configured ? !databaseUser.hasProfile : false
+      });
     } catch {
       return json({ ok: false, message: "请求没有完成，请稍后再试" }, 400);
     }

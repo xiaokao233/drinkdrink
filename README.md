@@ -29,10 +29,13 @@ npm start
 - `AUTH_TOKEN_SECRET`：一段足够长、不可公开的随机字符串
 - `RESEND_API_KEY`：Resend API Key
 - `AUTH_FROM_EMAIL`：已在 Resend 验证的发件地址
+- `DATABASE_URL`：Neon Postgres 连接地址（通过 Vercel Marketplace 连接后自动创建）
 
 变量名示例保存在 `.env.example`，不要把真实值提交到 GitHub。若暂时只想进行封闭测试，可以在 Vercel 设置 `AUTH_ALLOW_DEV_CODE=true`，页面会直接显示测试验证码；公开测试前应关闭它并配置真实邮件。
 
-线上验证码和登录状态使用签名令牌，不再写入 `.data/auth-store.json`，因此适合 Vercel 的无状态 Function。杯子、关系和设置目前仍保存在当前浏览器；跨设备同步需要后续接入云数据库。
+连接 Neon 后，云函数会在首次请求时自动创建用户、杯子资料、关系成员、邀请码与喝水事件所需的数据表。生产环境的函数区域设置为新加坡 `sin1`，与数据库保持同一区域。
+
+线上验证码和登录状态使用签名令牌，不再写入 `.data/auth-store.json`，因此适合 Vercel 的无状态 Function。杯子资料、关系、邀请码和喝水回应保存在 Neon；浏览器本地数据只作为过渡缓存。
 
 ## 当前可以体验
 
