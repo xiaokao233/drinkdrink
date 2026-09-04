@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2028" height="620" viewBox="0 0 2028 620" role="img" aria-label="核心行为模型">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#6C7C82"/></marker><filter id="shadow" x="-15%" y="-15%" width="130%" height="140%"><feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#173F3B" flood-opacity="0.08"/></filter></defs>
+<rect width="100%" height="100%" fill="#F8FAF7"/>
+<text x="1014.0" y="54" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="28" font-weight="700" fill="#1B2A30">核心行为模型</text>
+<text x="1014.0" y="88" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="14" fill="#68767C">阶段确认图；“单条替换”后来由多信号当前轮次规则补充</text>
+<path d="M 280.0 350.0 L 321.0 350.0 L 321.0 350.0 L 362.0 350.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 536.0 350.0 L 577.0 350.0 L 577.0 350.0 L 618.0 350.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 810.0 350.0 L 851.0 350.0 L 851.0 288.0 L 892.0 288.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 1102.0 288.0 L 1143.0 288.0 L 1143.0 350.0 L 1184.0 350.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 1392.0 350.0 L 1433.0 350.0 L 1433.0 298.0 L 1474.0 298.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="1407.0" y="309.0" width="52" height="30" rx="10" fill="#F8FAF7" stroke="#D4DFDC"/>
+<text x="1433.0" y="330.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15" fill="#4F6066">想跟</text>
+<path d="M 1392.0 350.0 L 1444.2 350.0 L 1444.2 412.0 L 1496.5 412.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="1409.8" y="366.0" width="69" height="30" rx="10" fill="#F8FAF7" stroke="#D4DFDC"/>
+<text x="1444.2" y="387.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15" fill="#4F6066">不想跟</text>
+<path d="M 1684.0 298.0 L 1725.0 298.0 L 1725.0 288.0 L 1766.0 288.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 1661.5 412.0 L 1718.2 412.0 L 1718.2 402.0 L 1775.0 402.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 810.0 350.0 L 851.0 350.0 L 851.0 425.0 L 892.0 425.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="70.0" y="318.0" width="210.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="175.0" y="356.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">任一成员现实中喝水</text>
+<rect x="362.0" y="318.0" width="174.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="449.0" y="356.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">点击「我喝了」</text>
+<rect x="618.0" y="318.0" width="192.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="714.0" y="356.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">生成当前喝水信号</text>
+<rect x="892.0" y="233.0" width="210.0" height="110.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="997.0" y="267.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">向关系空间内其他成</text>
+<text x="997.0" y="294.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">员</text>
+<text x="997.0" y="321.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">展示一次轻提示</text>
+<polygon points="1288.0,292.0 1392.0,350.0 1288.0,408.0 1184.0,350.0" fill="#EAF4F2" stroke="#5F9E98" stroke-width="2" filter="url(#shadow)"/>
+<text x="1288.0" y="356.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">成员自行决定</text>
+<rect x="1474.0" y="256.0" width="210.0" height="84.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="1579.0" y="290.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">喝水并点击「跟一口</text>
+<text x="1579.0" y="317.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">」</text>
+<rect x="1496.5" y="380.0" width="165.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="1579.0" y="418.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">什么都不做</text>
+<rect x="1766.0" y="256.0" width="192.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="1862.0" y="294.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">发起者得到轻反馈</text>
+<rect x="1775.0" y="360.0" width="174.0" height="84.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="1862.0" y="394.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">不记录未跟随</text>
+<text x="1862.0" y="421.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">不提醒、不追问</text>
+<rect x="892.0" y="383.0" width="210.0" height="84.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="997.0" y="417.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">直到被下一条</text>
+<text x="997.0" y="444.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">「我喝了」信号替换</text>
+</svg>

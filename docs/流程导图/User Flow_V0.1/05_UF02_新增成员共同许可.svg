@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="1740" viewBox="0 0 980 1740" role="img" aria-label="UF-02 新增成员共同许可">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#6C7C82"/></marker><filter id="shadow" x="-15%" y="-15%" width="130%" height="140%"><feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#173F3B" flood-opacity="0.08"/></filter></defs>
+<rect width="100%" height="100%" fill="#F8FAF7"/>
+<text x="490.0" y="54" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="28" font-weight="700" fill="#1B2A30">UF-02 新增成员共同许可</text>
+<text x="490.0" y="88" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="14" fill="#68767C">已确认；不存在群主，所有现有成员同意后候选人再确认加入</text>
+<path d="M 490.0 214.0 L 490.0 266.5 L 490.0 266.5 L 490.0 319.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 383.0 L 490.0 435.5 L 490.0 435.5 L 490.0 488.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 552.0 L 490.0 604.5 L 490.0 604.5 L 490.0 657.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 721.0 L 490.0 773.5 L 490.0 773.5 L 490.0 826.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 942.0 L 490.0 994.5 L 368.5 994.5 L 368.5 1047.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="405.2" y="979.5" width="48" height="30" rx="10" fill="#F8FAF7" stroke="#D4DFDC"/>
+<text x="429.2" y="1000.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15" fill="#4F6066">是</text>
+<path d="M 368.5 1111.0 L 368.5 1163.5 L 338.5 1163.5 L 338.5 1216.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 338.5 1280.0 L 338.5 1332.5 L 490.0 1332.5 L 490.0 1385.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 1501.0 L 490.0 1553.5 L 360.0 1553.5 L 360.0 1606.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="401.0" y="1538.5" width="48" height="30" rx="10" fill="#F8FAF7" stroke="#D4DFDC"/>
+<text x="425.0" y="1559.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15" fill="#4F6066">是</text>
+<path d="M 490.0 1501.0 L 490.0 1553.5 L 638.5 1553.5 L 638.5 1606.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="540.2" y="1538.5" width="48" height="30" rx="10" fill="#F8FAF7" stroke="#D4DFDC"/>
+<text x="564.2" y="1559.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15" fill="#4F6066">否</text>
+<path d="M 490.0 942.0 L 490.0 994.5 L 622.0 994.5 L 622.0 1047.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="532.0" y="979.5" width="48" height="30" rx="10" fill="#F8FAF7" stroke="#D4DFDC"/>
+<text x="556.0" y="1000.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15" fill="#4F6066">否</text>
+<path d="M 622.0 1111.0 L 622.0 1163.5 L 604.0 1163.5 L 604.0 1216.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="374.5" y="150.0" width="231.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="188.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">A 与 B 已组成平等关系</text>
+<rect x="407.5" y="319.0" width="165.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="357.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">B 希望 C 加入</text>
+<rect x="386.0" y="488.0" width="208.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="526.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">B 提出新增成员请求</text>
+<rect x="358.0" y="657.0" width="264.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="695.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">系统询问现有成员是否同意</text>
+<polygon points="490.0,826.0 639.0,884.0 490.0,942.0 341.0,884.0" fill="#EAF4F2" stroke="#5F9E98" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="890.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">现有成员是否全部同意？</text>
+<rect x="262.5" y="1047.0" width="212.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="368.5" y="1085.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">B 获得邀请 C 的权限</text>
+<rect x="250.5" y="1216.0" width="176.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="338.5" y="1254.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">B 向 C 发送邀请</text>
+<polygon points="490.0,1385.0 611.5,1443.0 490.0,1501.0 368.5,1443.0" fill="#EAF4F2" stroke="#5F9E98" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="1449.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">C 是否愿意加入？</text>
+<rect x="237.5" y="1606.0" width="245.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="360.0" y="1644.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">C 成为关系中的平等成员</text>
+<rect x="534.5" y="1606.0" width="208.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="638.5" y="1644.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">关系保持 A、B 不变</text>
+<rect x="526.5" y="1047.0" width="191.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="622.0" y="1085.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">C 不进入现有关系</text>
+<rect x="478.5" y="1216.0" width="251.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="604.0" y="1254.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">B 仍可另外创建 B–C 关系</text>
+</svg>

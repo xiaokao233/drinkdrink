@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="2347" viewBox="0 0 980 2347" role="img" aria-label="UF-01 核心喝水闭环">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#6C7C82"/></marker><filter id="shadow" x="-15%" y="-15%" width="130%" height="140%"><feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#173F3B" flood-opacity="0.08"/></filter></defs>
+<rect width="100%" height="100%" fill="#F8FAF7"/>
+<text x="490.0" y="54" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="28" font-weight="700" fill="#1B2A30">UF-01 核心喝水闭环</text>
+<text x="490.0" y="88" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="14" fill="#68767C">已确认的基础闭环；分发范围后来由全局信号模型补充</text>
+<path d="M 490.0 214.0 L 490.0 266.5 L 490.0 266.5 L 490.0 319.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 383.0 L 490.0 435.5 L 490.0 435.5 L 490.0 488.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 552.0 L 490.0 604.5 L 490.0 604.5 L 490.0 657.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 773.0 L 490.0 825.5 L 368.0 825.5 L 368.0 878.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="405.0" y="810.5" width="48" height="30" rx="10" fill="#F8FAF7" stroke="#D4DFDC"/>
+<text x="429.0" y="831.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15" fill="#4F6066">是</text>
+<path d="M 490.0 773.0 L 490.0 830.5 L 621.0 830.5 L 621.0 888.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="531.5" y="815.5" width="48" height="30" rx="10" fill="#F8FAF7" stroke="#D4DFDC"/>
+<text x="555.5" y="836.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15" fill="#4F6066">否</text>
+<path d="M 621.0 952.0 L 621.0 1009.5 L 490.0 1009.5 L 490.0 1067.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 1151.0 L 490.0 1203.5 L 341.0 1203.5 L 341.0 1256.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 1151.0 L 490.0 1208.5 L 639.0 1208.5 L 639.0 1266.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 341.0 1340.0 L 341.0 1392.5 L 490.0 1392.5 L 490.0 1445.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 1561.0 L 490.0 1613.5 L 332.0 1613.5 L 332.0 1666.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="376.5" y="1598.5" width="69" height="30" rx="10" fill="#F8FAF7" stroke="#D4DFDC"/>
+<text x="411.0" y="1619.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15" fill="#4F6066">不想跟</text>
+<path d="M 490.0 1561.0 L 490.0 1613.5 L 612.0 1613.5 L 612.0 1666.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="525.0" y="1598.5" width="52" height="30" rx="10" fill="#F8FAF7" stroke="#D4DFDC"/>
+<text x="551.0" y="1619.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15" fill="#4F6066">想跟</text>
+<path d="M 612.0 1750.0 L 612.0 1802.5 L 490.0 1802.5 L 490.0 1855.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 1919.0 L 490.0 1971.5 L 350.0 1971.5 L 350.0 2024.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 490.0 1919.0 L 490.0 1971.5 L 639.0 1971.5 L 639.0 2024.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 639.0 2088.0 L 639.0 2140.5 L 490.0 2140.5 L 490.0 2193.0" fill="none" stroke="#6C7C82" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="394.0" y="150.0" width="192.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="188.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">发起者现实中喝水</text>
+<rect x="385.0" y="319.0" width="210.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="357.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">调用产品的记录入口</text>
+<rect x="403.0" y="488.0" width="174.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="526.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">点击「我喝了」</text>
+<polygon points="490.0,657.0 639.0,715.0 490.0,773.0 341.0,715.0" fill="#EAF4F2" stroke="#5F9E98" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="721.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">是否为短时间重复点击？</text>
+<rect x="263.0" y="878.0" width="210.0" height="84.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="368.0" y="912.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">合并记录</text>
+<text x="368.0" y="939.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">不重复提示其他成员</text>
+<rect x="525.0" y="888.0" width="192.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="621.0" y="926.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">创建新的喝水信号</text>
+<rect x="358.0" y="1067.0" width="264.0" height="84.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="1101.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">将它设为关系空间的当前信</text>
+<text x="490.0" y="1128.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">号</text>
+<rect x="218.0" y="1256.0" width="246.0" height="84.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="341.0" y="1290.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">让其他未屏蔽该成员的人</text>
+<text x="341.0" y="1317.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">感知一次轻提示</text>
+<rect x="516.0" y="1266.0" width="246.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="639.0" y="1304.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">发起者得到记录成功反馈</text>
+<polygon points="490.0,1445.0 612.0,1503.0 490.0,1561.0 368.0,1503.0" fill="#EAF4F2" stroke="#5F9E98" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="1509.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">接收者想不想跟？</text>
+<rect x="236.0" y="1666.0" width="192.0" height="84.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="332.0" y="1700.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">流程安静结束</text>
+<text x="332.0" y="1727.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">不留下未完成状态</text>
+<rect x="480.0" y="1666.0" width="264.0" height="84.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="612.0" y="1700.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">接收者喝水并点击「跟一口</text>
+<text x="612.0" y="1727.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">」</text>
+<rect x="356.0" y="1855.0" width="268.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="1893.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">系统创建 Follow Response</text>
+<rect x="227.0" y="2024.0" width="246.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="350.0" y="2062.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">接收者得到跟随成功反馈</text>
+<rect x="525.0" y="2024.0" width="228.0" height="64.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="639.0" y="2062.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">发起者知道有人跟上了</text>
+<rect x="385.0" y="2193.0" width="210.0" height="84.0" rx="18" fill="#FFFFFF" stroke="#BFD1CD" stroke-width="2" filter="url(#shadow)"/>
+<text x="490.0" y="2227.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">本次跟随结束</text>
+<text x="490.0" y="2254.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" fill="#1B2A30">不产生新的喝水信号</text>
+</svg>

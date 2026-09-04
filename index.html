@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7fcff" />
+    <meta name="description" content="跟一口——你喝的时候，喊我一声。" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>跟一口 · 手绘交互 Demo</title>
+  </head>
+  <body>
+    <main class="demo-stage">
+      <aside class="demo-note" aria-label="Demo 说明">
+        <p class="demo-note__eyebrow">跟一口 · V0.1 可点击 Demo</p>
+        <h1>喝水，也一起。</h1>
+        <p>你喝的时候，喊我一声。<br />邮箱登录与本地保存已经接入，邮件、推送与多人同步仍使用测试通道。</p>
+        <ol>
+          <li>点“我喝了”，试试气泡动效。</li>
+          <li>右上角“演示”可切换不同场景。</li>
+          <li>轻点“跟一口”回应全部，长按选人。</li>
+          <li>未登录时先通过邮箱测试验证码进入。</li>
+        </ol>
+        <div class="demo-note__legend"><span>喝</span>行为 <span>碰</span>关系 <span>杯</span>个人</div>
+      </aside>
+
+      <section class="phone-shell" aria-label="跟一口移动端 Demo">
+        <div class="phone-speaker" aria-hidden="true"></div>
+        <div id="app" class="app-root"></div>
+      </section>
+    </main>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

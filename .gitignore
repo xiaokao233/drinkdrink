@@ -1,0 +1,20 @@
+# Local dependencies and runtime data
+node_modules/
+.data/
+
+# Environment variables and local secrets
+.env
+.env.*
+!.env.example
+
+# Test and browser output
+test-results/
+playwright-report/
+screenshots/
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+

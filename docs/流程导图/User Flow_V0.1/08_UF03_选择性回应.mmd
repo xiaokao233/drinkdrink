@@ -1,0 +1,12 @@
+flowchart TB
+    W["当前一轮：A、C、D 都喝过"] --> D{"用户如何回应？"}
+
+    D -->|"直接跟一口"| ALL["默认回应 A、C、D"]
+    D -->|"进入选择模式"| SELECT["默认选中 A、C、D"]
+    SELECT --> CHANGE["用户取消选择 C"]
+    CHANGE --> PART["只回应 A、D"]
+    D -->|"不处理"| NONE["不回应任何人"]
+
+    ALL --> END["本轮对用户结束"]
+    PART --> END
+    NONE --> QUIET["保持安静"]

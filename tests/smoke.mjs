@@ -1,0 +1,65 @@
+const baseUrl = "http://127.0.0.1:4173";
+
+const [pageResponse, scriptResponse, stylesResponse, fontResponse, cupAssetResponse, navAssetResponse] = await Promise.all([
+  fetch(`${baseUrl}/`),
+  fetch(`${baseUrl}/app.js`),
+  fetch(`${baseUrl}/styles.css`),
+  fetch(`${baseUrl}/assets/fonts/MaokenAssortedSans.ttf`),
+  fetch(`${baseUrl}/assets/cups/cup-01-body.png`),
+  fetch(`${baseUrl}/assets/nav/drink.png`)
+]);
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+assert(pageResponse.ok, `首页加载失败：${pageResponse.status}`);
+assert(scriptResponse.ok, `交互脚本加载失败：${scriptResponse.status}`);
+assert(stylesResponse.ok, `样式加载失败：${stylesResponse.status}`);
+assert(fontResponse.ok, `猫啃什锦黑加载失败：${fontResponse.status}`);
+assert(fontResponse.headers.get("content-type")?.includes("font/ttf"), "字体 MIME 类型不正确");
+assert(cupAssetResponse.ok && cupAssetResponse.headers.get("content-type")?.includes("image/png"), "杯型分层素材加载失败");
+assert(navAssetResponse.ok && navAssetResponse.headers.get("content-type")?.includes("image/png"), "底部导航素材加载失败");
+
+const [html, script, styles] = await Promise.all([
+  pageResponse.text(),
+  scriptResponse.text(),
+  stylesResponse.text()
+]);
+
+assert(html.includes('id="app"'), "页面缺少应用入口");
+assert(script.includes("data-hold-follow"), "长按“跟一口”入口缺失");
+assert(script.includes("incoming-strip"), "待回应滑动条缺失");
+assert(script.includes("我喝了") && script.includes("跟一口"), "两种核心信号缺失");
+assert(script.includes('label: "喝"') && script.includes('label: "碰"') && script.includes('label: "杯"'), "底部分区缺失");
+assert(styles.includes("bubble-field-arrive") && styles.includes("bubble-drift") && script.includes('attributeName="d"'), "气泡入场与持续晃动反馈缺失");
+assert(script.includes("syncBubbleMotion") && styles.includes("prefers-reduced-motion"), "气泡减少动态效果适配缺失");
+assert(styles.includes("calm-cup-idle") && styles.includes("calm-shadow-breathe"), "首页杯子的轻微持续动效缺失");
+assert(styles.includes("sent-cup-idle") && styles.includes(".hero-cup--sending .cup-art"), "喝过了页面的主体杯持续动效缺失");
+assert(styles.includes("clink-cup-idle") && styles.includes("clink-blob-breathe") && styles.includes("ray-afterglow"), "朋友回应后的持续动效缺失");
+assert(script.includes("--idle-duration") && script.includes("--idle-delay"), "多杯待机动效没有错开节奏");
+assert(styles.includes("Maoken Assorted Sans"), "猫啃什锦黑没有接入页面");
+assert(script.includes('"relation-detail"') && script.includes('"member-detail"'), "关系与成员详情流程缺失");
+assert(script.includes('"proposal-confirm"') && script.includes('"invite-ready"'), "新增成员确认流程缺失");
+assert(script.includes('"notification-settings"') && script.includes('"delete-final"'), "设置与注销流程缺失");
+assert(script.includes('"entry"') && script.includes('"activation-notification"'), "首次进入、身份与通知引导流程缺失");
+assert(script.includes('data-action="entry-create"') && script.includes('data-action="entry-join"'), "首次进入的双入口缺失");
+assert(script.includes("cup-object--real") && script.includes("cup-layer"), "真实杯型分层素材没有接入");
+assert(script.includes("data-region-select") && script.includes("随机配色"), "杯子分区配色流程缺失");
+assert(script.includes('"login"') && script.includes("send-login-code") && script.includes("verify-login-code"), "邮箱验证码登录入口缺失");
+assert(script.includes("restoreAuthSession") && script.includes("validateAuthSession"), "登录状态恢复与校验缺失");
+assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
+assert(styles.includes("#55d8ff") && styles.includes("#4fe1ce"), "清透色卡没有接入页面");
+assert(!script.includes("stats-grid") && !script.includes("history-card"), "Demo 中不应出现饮水统计或历史压力");
+
+const functionIcons = ["back", "next", "create", "join", "edit", "bell", "install", "copy", "close", "leave", "delete", "check", "email", "data"];
+await Promise.all(functionIcons.map(async name => {
+  const response = await fetch(`${baseUrl}/assets/icons/${name}.png`);
+  assert(response.ok && response.headers.get("content-type")?.includes("image/png"), `功能图标加载失败：${name}`);
+}));
+assert(script.includes('class="cup-art"') && styles.includes("100cqh"), "杯子与姓名没有共享等比例画布");
+assert(script.includes("sketchIconAssets") && styles.includes(".ui-sketch-icon"), "功能手绘图标没有接入");
+assert(styles.includes(".screen-content:has(> .flow-page)") && styles.includes(".screen-content:has(> .subpage)") && styles.includes("margin-block: auto"), "内容较少的内页应居中，长页面保持可滚动");
+assert(/\.danger-link \.ui-sketch-icon--leave\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;/.test(styles), "退出关系的 bye 图标应使用独立的大尺寸");
+
+console.log("PASS 页面资源与核心交互结构检查");

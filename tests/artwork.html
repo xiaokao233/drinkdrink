@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>杯子标签与手绘图标检查</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { margin: 0; padding: 28px; background: white; }
+  h1 { margin: 0 0 20px; font-size: 24px; }
+  h2 { font-size: 18px; }
+  #cup-gallery { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+  figure { margin: 0; text-align: center; }
+  .sample-cup { height: 228px; max-width: 210px; margin: auto; font-size: 18px; }
+  .sample-small { width: 89px; height: 102px; margin: auto; font-size: 12px; }
+  figcaption { margin-top: 8px; color: #6b8490; font-size: 13px; }
+  #icon-gallery { display: grid; grid-template-columns: repeat(6, 1fr); gap: 28px 12px; }
+  .icon-pair { display: flex; gap: 20px; align-items: center; justify-content: center; height: 58px; }
+  .icon-pair .ui-sketch-icon:first-child { width: 48px; height: 48px; }
+</style>
+<div id="app" hidden></div>
+<h1>六款杯子的姓名位置 · 大图／关系卡片尺寸</h1>
+<div id="cup-gallery"></div>
+<h2>原始手绘小图标 · 放大检查／实际大小</h2>
+<div id="icon-gallery"></div>
+<script src="/app.js"></script>
+<script>
+  document.querySelector('#cup-gallery').innerHTML = cupTypes.map((cup, index) => `<figure>
+    <div class="sample-cup">${cupPreviewMarkup(cup.id, cup.defaults, '小满')}</div>
+    <div class="sample-small">${cupPreviewMarkup(cup.id, cup.defaults, '小明')}</div>
+    <figcaption>${index + 1} / ${cupTypes.length}</figcaption>
+  </figure>`).join('');
+  document.querySelector('#icon-gallery').innerHTML = Object.keys(sketchIconAssets).map(type => `<figure>
+    <div class="icon-pair">${sketchIcon(type)}${sketchIcon(type)}</div><figcaption>${type}</figcaption>
+  </figure>`).join('');
+</script>
+</html>
