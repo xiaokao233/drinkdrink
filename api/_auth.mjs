@@ -115,7 +115,7 @@ export function createSession(email) {
   };
 }
 
-export function sessionFromRequest(request) {
+export function sessionTokenFromRequest(request) {
   const match = String(request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i);
   const cookieToken = String(request.headers.get("cookie") || "")
     .split(";")
@@ -124,7 +124,11 @@ export function sessionFromRequest(request) {
     ?.slice(authCookieName.length + 1);
   let decodedCookie = "";
   try { decodedCookie = decodeURIComponent(cookieToken || ""); } catch { decodedCookie = ""; }
-  const payload = verify(match?.[1] || decodedCookie, "session");
+  return match?.[1] || decodedCookie;
+}
+
+export function sessionFromRequest(request) {
+  const payload = verify(sessionTokenFromRequest(request), "session");
   return payload?.user?.id && payload?.user?.email ? payload.user : null;
 }
 

@@ -55,6 +55,7 @@ const sessionResponse = await sessionHandler.fetch(request("/api/auth/session", 
 const session = await sessionResponse.json();
 assert.equal(sessionResponse.status, 200);
 assert.equal(session.user.id, verified.user.id);
+assert.match(sessionResponse.headers.get("set-cookie") || "", /^genyikou_session=/);
 
 const cookieSessionResponse = await sessionHandler.fetch(request("/api/auth/session", "GET", null, null, cookie));
 const cookieSession = await cookieSessionResponse.json();

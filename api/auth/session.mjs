@@ -1,4 +1,4 @@
-import { json, methodNotAllowed, sessionFromRequest } from "../_auth.mjs";
+import { json, methodNotAllowed, sessionCookie, sessionFromRequest, sessionTokenFromRequest } from "../_auth.mjs";
 import { ensureUser } from "../_db.mjs";
 
 export default {
@@ -12,6 +12,6 @@ export default {
       user,
       cloudDataAvailable: databaseUser.configured,
       isNewUser: databaseUser.configured ? !databaseUser.hasProfile : false
-    });
+    }, 200, { "Set-Cookie": sessionCookie(sessionTokenFromRequest(request)) });
   }
 };
