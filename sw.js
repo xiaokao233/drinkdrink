@@ -1,3 +1,11 @@
+self.addEventListener("install", event => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener("activate", event => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener("push", event => {
   let data = {};
   try {
@@ -16,7 +24,18 @@ self.addEventListener("push", event => {
     vibrate: [80, 45, 80],
     data: { url: data.url || "/" }
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const foregroundUpdate = Promise.all(windows.map(client => client.postMessage({
+      type: "genyikou-push",
+      category: data.category || "drink",
+      url: data.url || "/"
+    })));
+    await Promise.all([
+      self.registration.showNotification(title, options),
+      foregroundUpdate
+    ]);
+  })());
 });
 
 self.addEventListener("notificationclick", event => {

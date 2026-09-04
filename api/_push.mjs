@@ -46,7 +46,7 @@ export async function sendPushToUsers(userIds, category, payload) {
         endpoint: row.endpoint,
         expirationTime: row.expiration_time == null ? null : Number(row.expiration_time),
         keys: { p256dh: row.p256dh, auth: row.auth }
-      }, JSON.stringify(payload), { TTL: 60 * 60, urgency: "normal" });
+      }, JSON.stringify({ category, ...payload }), { TTL: 60 * 60, urgency: "normal" });
       delivered += 1;
     } catch (error) {
       if (error?.statusCode === 404 || error?.statusCode === 410) {

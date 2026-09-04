@@ -107,6 +107,26 @@ const assertions = `
 vm.runInContext(source + assertions, context, { filename: "client.js" });
 console.log(`PASS ${pages.length} 个页面运行时渲染检查`);
 
+await vm.runInContext(`
+  (async () => {
+    syncServerState = async () => {
+      incomingIds = ["ming"];
+      state.incomingEvents = { ming: "event-1" };
+      return true;
+    };
+    authAccount = { id: "user-me", email: "me@example.com" };
+    cloudDataAvailable = true;
+    state.page = "notification-settings";
+    state.activeTab = "cup";
+    state.homeMode = "calm";
+    const handled = await handleForegroundPush({ type: "genyikou-push", category: "drink" });
+    if (!handled || state.page !== null || state.activeTab !== "drink" || state.homeMode !== "incoming") {
+      throw new Error("前台收到喝水推送后应立即进入待回应界面");
+    }
+  })()
+`, context);
+console.log("PASS 前台推送即时切换待回应界面检查");
+
 let prefersReducedMotion = false;
 const motionProbe = { paused: false, cssPaused: false, time: 10 };
 context.matchMedia = () => ({ matches: prefersReducedMotion });

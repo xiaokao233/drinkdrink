@@ -23,9 +23,10 @@ assert(fontResponse.headers.get("content-type")?.includes("font/ttf"), "字体 M
 assert(cupAssetResponse.ok && cupAssetResponse.headers.get("content-type")?.includes("image/png"), "杯型分层素材加载失败");
 assert(navAssetResponse.ok && navAssetResponse.headers.get("content-type")?.includes("image/png"), "底部导航素材加载失败");
 
-const [html, script, styles] = await Promise.all([
+const [html, script, worker, styles] = await Promise.all([
   pageResponse.text(),
   scriptResponse.text(),
+  workerResponse.text(),
   stylesResponse.text()
 ]);
 
@@ -51,6 +52,8 @@ assert(script.includes("data-region-select") && script.includes("随机配色"),
 assert(script.includes('"login"') && script.includes("send-login-code") && script.includes("verify-login-code"), "邮箱验证码登录入口缺失");
 assert(script.includes("restoreAuthSession") && script.includes("validateAuthSession"), "登录状态恢复与校验缺失");
 assert(script.includes("pushManager.subscribe") && script.includes("/api/push-subscription"), "系统推送订阅流程缺失");
+assert(script.includes("handleForegroundPush") && script.includes('message.category === "drink"'), "前台收到推送后没有立即进入待回应状态");
+assert(worker.includes("postMessage") && worker.includes("genyikou-push"), "Service Worker 没有把推送即时通知给已打开的页面");
 assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
 assert(styles.includes("#55d8ff") && styles.includes("#4fe1ce"), "清透色卡没有接入页面");
 assert(!script.includes("stats-grid") && !script.includes("history-card"), "Demo 中不应出现饮水统计或历史压力");

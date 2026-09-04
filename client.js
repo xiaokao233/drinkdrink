@@ -860,10 +860,38 @@ async function copyDemoInvitation() {
   const code = state.page === "invite-ready" ? "P8L4" : currentRelation()?.inviteCode;
   if (!code) return;
   try {
-    await navigator.clipboard.writeText(`https://genyikou.click/join/${code}`);
-    showToast(cloudDataAvailable ? "邀请链接已复制" : "演示链接已复制，暂不能真实加入");
+    await navigator.clipboard.writeText(code);
+    showToast(cloudDataAvailable ? "邀请码已复制" : "演示邀请码已复制");
   } catch {
-    showToast("未能复制，可以手动选中链接");
+    showToast("未能复制，可以手动选中邀请码");
+  }
+}
+
+async function handleForegroundPush(message) {
+  if (message?.type !== "genyikou-push" || !authAccount || !cloudDataAvailable) return false;
+  try {
+    await syncServerState({ chooseHomeMode: true });
+    if (message.category === "drink" && incomingIds.length) {
+      state.page = null;
+      state.pageHistory = [];
+      state.activeTab = "drink";
+      state.homeMode = "incoming";
+      state.selectorOpen = false;
+      state.demoPanel = false;
+      state.selectedIds = [...incomingIds];
+    } else if (message.category === "response" && state.responseIds.length) {
+      state.page = null;
+      state.pageHistory = [];
+      state.activeTab = "drink";
+      state.homeMode = "responded";
+      state.selectorOpen = false;
+      state.demoPanel = false;
+    }
+    render();
+    return true;
+  } catch {
+    // The 30-second sync remains as a fallback for a momentary network failure.
+    return false;
   }
 }
 
@@ -1437,7 +1465,7 @@ function waitingMemberTemplate() {
     ${flowLead("邀请已准备好", "不用在这里等，朋友加入后会出现在「碰」里。")}
     <div class="invite-ticket"><small>${escapeHtml(relation?.note || "邀请朋友")}</small><strong>genyikou.click/join/${code}</strong><span>备用邀请码 · ${code}</span></div>
     ${cloudDataAvailable ? "" : `<p class="field-note">演示邀请，暂不能用于真实加入</p>`}
-    <button class="flow-secondary with-icon invitation-copy" data-action="copy-invite">${sketchIcon("copy")}复制邀请</button>
+    <button class="flow-secondary with-icon invitation-copy" data-action="copy-invite">${sketchIcon("copy")}复制邀请码</button>
     <button class="flow-primary" data-action="complete-invitation">完成，进入首页</button>
     <div class="flow-list">
       <button data-action="edit-relation-note"><span class="with-icon">${sketchIcon("edit")}修改备注</span><i>›</i></button>
@@ -1509,7 +1537,7 @@ function inviteReadyTemplate() {
   return `<section class="flow-page">
     ${flowLead(`可以邀请${escapeHtml(candidate)}了`)}
     <div class="invite-ticket"><small>${escapeHtml(candidate)}的邀请链接</small><strong>genyikou.click/join/P8L4</strong><span>备用邀请码 · P8L4</span></div>
-    <button class="flow-primary with-icon" data-action="copy-invite">${sketchIcon("copy")}复制邀请</button>
+    <button class="flow-primary with-icon" data-action="copy-invite">${sketchIcon("copy")}复制邀请码</button>
     <button class="text-action" data-action="finish-invite-ready">稍后</button>
   </section>`;
 }
@@ -2378,6 +2406,9 @@ else {
 }
 
 document.addEventListener?.("visibilitychange", syncBubbleMotion);
+if (typeof navigator !== "undefined") {
+  navigator.serviceWorker?.addEventListener("message", event => handleForegroundPush(event.data));
+}
 document.addEventListener?.("visibilitychange", async () => {
   if (document.hidden || !authAccount || !cloudDataAvailable) return;
   try {

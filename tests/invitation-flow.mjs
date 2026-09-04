@@ -128,11 +128,11 @@ vm.runInContext(`
   act("finish-create-relation");
 `, context);
 await vm.runInContext("copyDemoInvitation()", context);
-assert.match(copiedText, /^https:\/\/genyikou\.click\/join\/G\d+$/);
-assert.equal(toast.textContent, "演示链接已复制，暂不能真实加入");
+assert.match(copiedText, /^G\d+$/);
+assert.equal(toast.textContent, "演示邀请码已复制");
 context.navigator.clipboard.writeText = async () => { throw new Error("Clipboard unavailable"); };
 await vm.runInContext("copyDemoInvitation()", context);
-assert.equal(toast.textContent, "未能复制，可以手动选中链接");
+assert.equal(toast.textContent, "未能复制，可以手动选中邀请码");
 vm.runInContext(`
   act("cancel-waiting-relation");
   assert.equal(state.relations.length, 1);
