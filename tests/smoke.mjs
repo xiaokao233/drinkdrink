@@ -1,13 +1,16 @@
 const baseUrl = "http://127.0.0.1:4173";
 
-const [pageResponse, scriptResponse, workerResponse, stylesResponse, fontResponse, cupAssetResponse, navAssetResponse] = await Promise.all([
+const [pageResponse, scriptResponse, workerResponse, stylesResponse, manifestResponse, fontResponse, cupAssetResponse, navAssetResponse, appIconResponse, appleIconResponse] = await Promise.all([
   fetch(`${baseUrl}/`),
   fetch(`${baseUrl}/client.js`),
   fetch(`${baseUrl}/sw.js`),
   fetch(`${baseUrl}/styles.css`),
+  fetch(`${baseUrl}/manifest.webmanifest`),
   fetch(`${baseUrl}/assets/fonts/MaokenAssortedSans.ttf`),
   fetch(`${baseUrl}/assets/cups/cup-01-body.png`),
-  fetch(`${baseUrl}/assets/nav/drink.png`)
+  fetch(`${baseUrl}/assets/nav/drink.png`),
+  fetch(`${baseUrl}/assets/app-icons/app-icon-512.png`),
+  fetch(`${baseUrl}/assets/app-icons/apple-touch-icon.png`)
 ]);
 
 function assert(condition, message) {
@@ -18,19 +21,26 @@ assert(pageResponse.ok, `首页加载失败：${pageResponse.status}`);
 assert(scriptResponse.ok, `交互脚本加载失败：${scriptResponse.status}`);
 assert(workerResponse.ok, `通知服务脚本加载失败：${workerResponse.status}`);
 assert(stylesResponse.ok, `样式加载失败：${stylesResponse.status}`);
+assert(manifestResponse.ok, `应用清单加载失败：${manifestResponse.status}`);
 assert(fontResponse.ok, `猫啃什锦黑加载失败：${fontResponse.status}`);
 assert(fontResponse.headers.get("content-type")?.includes("font/ttf"), "字体 MIME 类型不正确");
 assert(cupAssetResponse.ok && cupAssetResponse.headers.get("content-type")?.includes("image/png"), "杯型分层素材加载失败");
 assert(navAssetResponse.ok && navAssetResponse.headers.get("content-type")?.includes("image/png"), "底部导航素材加载失败");
+assert(appIconResponse.ok && appIconResponse.headers.get("content-type")?.includes("image/png"), "App 安装图标加载失败");
+assert(appleIconResponse.ok && appleIconResponse.headers.get("content-type")?.includes("image/png"), "Apple 桌面图标加载失败");
 
-const [html, script, worker, styles] = await Promise.all([
+const [html, script, worker, styles, manifestText] = await Promise.all([
   pageResponse.text(),
   scriptResponse.text(),
   workerResponse.text(),
-  stylesResponse.text()
+  stylesResponse.text(),
+  manifestResponse.text()
 ]);
 
 assert(html.includes('id="app"'), "页面缺少应用入口");
+assert(html.includes('rel="apple-touch-icon"') && html.includes('favicon-32.png'), "网页缺少 App 图标声明");
+const manifest = JSON.parse(manifestText);
+assert(manifest.icons?.some(icon => icon.sizes === "192x192") && manifest.icons?.some(icon => icon.sizes === "512x512" && icon.purpose === "maskable"), "应用清单缺少标准与可裁切图标");
 assert(script.includes("data-hold-follow"), "长按“跟一口”入口缺失");
 assert(script.includes("incoming-strip"), "待回应滑动条缺失");
 assert(script.includes("我喝了") && script.includes("跟一口"), "两种核心信号缺失");
