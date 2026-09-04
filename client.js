@@ -166,6 +166,8 @@ let pushState = {
 };
 let authCooldownTimer;
 let serverSyncTimer;
+let serverSyncPromise;
+const serverSyncIntervalMs = 5_000;
 let currentResponseSignature = "";
 const initialInviteCode = typeof location !== "undefined"
   ? (location.pathname.match(/^\/join\/([A-Z0-9]{4,10})\/?$/i)?.[1] || "").toUpperCase()
@@ -647,8 +649,14 @@ async function appRequest(action, payload = {}) {
 
 async function syncServerState(options = {}) {
   if (!authAccount || !cloudDataAvailable || typeof fetch !== "function") return false;
-  const result = await authRequest("/api/app-state");
-  return applyServerState(result, options);
+  const request = serverSyncPromise || authRequest("/api/app-state");
+  serverSyncPromise = request;
+  try {
+    const result = await request;
+    return applyServerState(result, options);
+  } finally {
+    if (serverSyncPromise === request) serverSyncPromise = undefined;
+  }
 }
 
 async function saveProfileRemote() {
@@ -662,15 +670,20 @@ async function saveProfileRemote() {
 
 function startServerSync() {
   if (serverSyncTimer || !authAccount || !cloudDataAvailable || typeof setInterval !== "function") return;
-  serverSyncTimer = setInterval(async () => {
-    if (typeof document !== "undefined" && document.hidden) return;
-    try {
-      await syncServerState({ chooseHomeMode: true });
-      render();
-    } catch {
-      // Keep the last known state when the network is temporarily unavailable.
-    }
-  }, 30_000);
+  serverSyncTimer = setInterval(refreshVisibleServerState, serverSyncIntervalMs);
+}
+
+async function refreshVisibleServerState() {
+  if (typeof document !== "undefined" && document.hidden) return false;
+  if (!authAccount || !cloudDataAvailable) return false;
+  try {
+    await syncServerState({ chooseHomeMode: true });
+    render();
+    return true;
+  } catch {
+    // Keep the last known state when the network is temporarily unavailable.
+    return false;
+  }
 }
 
 async function openInviteFromUrl() {
@@ -1209,10 +1222,11 @@ function incomingTemplate() {
 
 function incomingPersonTemplate(id) {
   const person = people[id];
+  const time = typeof person?.time === "string" && person.time.trim() ? person.time : "刚刚";
   return `<article class="incoming-person" role="listitem">
     <div class="incoming-person__cup">${cupMarkup(id, { label: true })}</div>
     <strong>${person.name}</strong>
-    <span>${person.time}</span>
+    <span>${escapeHtml(time)}</span>
   </article>`;
 }
 
@@ -2450,14 +2464,13 @@ if (typeof navigator !== "undefined") {
   navigator.serviceWorker?.addEventListener("message", event => handleForegroundPush(event.data));
 }
 document.addEventListener?.("visibilitychange", async () => {
-  if (document.hidden || !authAccount || !cloudDataAvailable) return;
-  try {
-    await syncServerState({ chooseHomeMode: true });
-    render();
-  } catch {
-    // Keep cached UI visible until the next successful sync.
-  }
+  if (!document.hidden) await refreshVisibleServerState();
 });
+if (typeof window !== "undefined") {
+  window.addEventListener?.("focus", refreshVisibleServerState);
+  window.addEventListener?.("pageshow", refreshVisibleServerState);
+  window.addEventListener?.("online", refreshVisibleServerState);
+}
 if (typeof matchMedia === "function") {
   matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", syncBubbleMotion);
 }

@@ -18,7 +18,9 @@ function cleanColors(value) {
 }
 
 function timeLabel(value) {
-  const elapsed = Math.max(0, Date.now() - new Date(value).getTime());
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "刚刚";
+  const elapsed = Math.max(0, Date.now() - timestamp);
   const minutes = Math.floor(elapsed / 60_000);
   if (minutes < 1) return "刚刚";
   if (minutes < 60) return `${minutes} 分钟前`;
@@ -112,7 +114,13 @@ async function readState(user) {
       AND target.responded_at > NOW() - INTERVAL '30 minutes'
     ORDER BY target.recipient_user_id, target.responded_at DESC
     LIMIT 12`;
-  for (const row of responseRows) peopleById.set(row.id, publicPerson(row));
+  for (const row of responseRows) {
+    const incomingTime = peopleById.get(row.id)?.time;
+    peopleById.set(row.id, {
+      ...publicPerson(row),
+      ...(incomingTime ? { time: incomingTime } : {})
+    });
+  }
 
   return {
     ok: true,

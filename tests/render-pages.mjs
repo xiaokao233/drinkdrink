@@ -77,6 +77,11 @@ const assertions = `
     throw new Error("选人后应继续用原来的跟一口按钮确认");
   }
   state.selectorOpen = false;
+  people.ming.time = undefined;
+  incomingIds = ["ming"];
+  if (incomingTemplate().includes("undefined") || !incomingTemplate().includes("刚刚")) {
+    throw new Error("刚喝时间缺失时应显示“刚刚”而不是 undefined");
+  }
   if (!loginTemplate().includes("发送验证码") || !loginTemplate().includes("登录 / 注册") || !identitySetupTemplate().includes("名称保存后暂不支持修改")) {
     throw new Error("精简文案不能移除原型身份说明与名称限制");
   }

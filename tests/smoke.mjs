@@ -64,6 +64,7 @@ assert(script.includes('"login"') && script.includes("send-login-code") && scrip
 assert(script.includes("restoreAuthSession") && script.includes("validateAuthSession"), "登录状态恢复与校验缺失");
 assert(script.includes("pushManager.subscribe") && script.includes("/api/push-subscription"), "系统推送订阅流程缺失");
 assert(script.includes("handleForegroundPush") && script.includes('message.category === "drink"'), "前台收到推送后没有立即进入待回应状态");
+assert(script.includes("serverSyncIntervalMs = 5_000") && script.includes('window.addEventListener?.("focus"'), "前台状态同步仍然不够及时");
 assert(script.includes('data-action="return-home"') && script.includes("acknowledgeDisplayedResponse"), "回应页缺少主动回到首页并确认已读的操作");
 assert(worker.includes("postMessage") && worker.includes("genyikou-push"), "Service Worker 没有把推送即时通知给已打开的页面");
 assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
@@ -78,6 +79,7 @@ await Promise.all(functionIcons.map(async name => {
 }));
 assert(script.includes('class="cup-art"') && styles.includes("100cqh"), "杯子与姓名没有共享等比例画布");
 assert(script.includes("sketchIconAssets") && styles.includes(".ui-sketch-icon"), "功能手绘图标没有接入");
+assert(styles.includes("drop-shadow(0 -.8px 0 #1f3540)"), "手绘小图标线条没有统一加深");
 assert(styles.includes(".screen-content:has(> .flow-page)") && styles.includes(".screen-content:has(> .subpage)") && styles.includes("margin-block: auto"), "内容较少的内页应居中，长页面保持可滚动");
 assert(/\.danger-link \.ui-sketch-icon--leave\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;/.test(styles), "退出关系的 bye 图标应使用独立的大尺寸");
 
