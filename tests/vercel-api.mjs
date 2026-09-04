@@ -11,12 +11,13 @@ const logoutHandler = (await import("../api/auth/logout.mjs")).default;
 const appStateHandler = (await import("../api/app-state.mjs")).default;
 const email = "vercel-test@example.com";
 
-function request(path, method = "GET", body, token) {
+function request(path, method = "GET", body, token, cookie) {
   return new Request(`https://drinkdrink.example${path}`, {
     method,
     headers: {
       ...(body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(cookie ? { Cookie: cookie } : {})
     },
     ...(body ? { body: JSON.stringify(body) } : {})
   });
@@ -44,16 +45,27 @@ const verified = await verifiedResponse.json();
 assert.equal(verifiedResponse.status, 200);
 assert.ok(verified.token);
 assert.equal(verified.user.email, email);
+const setCookie = verifiedResponse.headers.get("set-cookie") || "";
+assert.match(setCookie, /^genyikou_session=/);
+assert.match(setCookie, /HttpOnly/);
+assert.match(setCookie, /Secure/);
+const cookie = setCookie.split(";")[0];
 
 const sessionResponse = await sessionHandler.fetch(request("/api/auth/session", "GET", null, verified.token));
 const session = await sessionResponse.json();
 assert.equal(sessionResponse.status, 200);
 assert.equal(session.user.id, verified.user.id);
 
+const cookieSessionResponse = await sessionHandler.fetch(request("/api/auth/session", "GET", null, null, cookie));
+const cookieSession = await cookieSessionResponse.json();
+assert.equal(cookieSessionResponse.status, 200);
+assert.equal(cookieSession.user.id, verified.user.id);
+
 const appStateWithoutDatabase = await appStateHandler.fetch(request("/api/app-state", "GET", null, verified.token));
 assert.equal(appStateWithoutDatabase.status, 503);
 
-const logoutResponse = await logoutHandler.fetch(request("/api/auth/logout", "POST"));
+const logoutResponse = await logoutHandler.fetch(request("/api/auth/logout", "POST", {}, null, cookie));
 assert.equal(logoutResponse.status, 200);
+assert.match(logoutResponse.headers.get("set-cookie") || "", /Max-Age=0/);
 
 console.log("PASS Vercel 云函数验证码与签名登录检查");

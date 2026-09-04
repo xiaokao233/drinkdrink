@@ -1,9 +1,11 @@
 {
   "name": "跟一口",
   "short_name": "跟一口",
+  "id": "/",
   "description": "朋友喝的时候，顺便带我一下。",
   "lang": "zh-CN",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f6efe3",
   "theme_color": "#f3ecdf"

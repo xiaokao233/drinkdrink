@@ -4,15 +4,25 @@ export const codeLifetimeSeconds = 5 * 60;
 export const codeCooldownSeconds = 60;
 const sessionLifetimeSeconds = 30 * 24 * 60 * 60;
 const localDevelopmentSecret = "genyikou-local-development-only";
+export const authCookieName = "genyikou_session";
 
-export function json(payload, status = 200) {
+export function json(payload, status = 200, extraHeaders = {}) {
   return Response.json(payload, {
     status,
     headers: {
       "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff"
+      "X-Content-Type-Options": "nosniff",
+      ...extraHeaders
     }
   });
+}
+
+export function sessionCookie(token) {
+  return `${authCookieName}=${encodeURIComponent(token)}; Path=/; Max-Age=${sessionLifetimeSeconds}; HttpOnly; Secure; SameSite=Lax`;
+}
+
+export function clearSessionCookie() {
+  return `${authCookieName}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
 }
 
 export function methodNotAllowed() {
@@ -107,7 +117,14 @@ export function createSession(email) {
 
 export function sessionFromRequest(request) {
   const match = String(request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i);
-  const payload = verify(match?.[1], "session");
+  const cookieToken = String(request.headers.get("cookie") || "")
+    .split(";")
+    .map(part => part.trim())
+    .find(part => part.startsWith(`${authCookieName}=`))
+    ?.slice(authCookieName.length + 1);
+  let decodedCookie = "";
+  try { decodedCookie = decodeURIComponent(cookieToken || ""); } catch { decodedCookie = ""; }
+  const payload = verify(match?.[1] || decodedCookie, "session");
   return payload?.user?.id && payload?.user?.email ? payload.user : null;
 }
 

@@ -10,6 +10,7 @@ const authDataFile = join(authDataDirectory, "auth-store.json");
 const authCodeLifetime = 5 * 60 * 1000;
 const authCodeCooldown = 60 * 1000;
 const authSessionLifetime = 30 * 24 * 60 * 60 * 1000;
+const authCookieName = "genyikou_session";
 const pendingCodes = new Map();
 let authStore;
 
@@ -24,10 +25,11 @@ const mimeTypes = {
   ".otf": "font/otf"
 };
 
-function json(response, status, payload) {
+function json(response, status, payload, extraHeaders = {}) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    ...extraHeaders
   });
   response.end(JSON.stringify(payload));
 }
@@ -72,6 +74,27 @@ async function saveAuthStore() {
 function bearerToken(request) {
   const match = String(request.headers.authorization || "").match(/^Bearer\s+(.+)$/i);
   return match?.[1] || "";
+}
+
+function cookieToken(request) {
+  const value = String(request.headers.cookie || "")
+    .split(";")
+    .map(part => part.trim())
+    .find(part => part.startsWith(`${authCookieName}=`))
+    ?.slice(authCookieName.length + 1);
+  try { return decodeURIComponent(value || ""); } catch { return ""; }
+}
+
+function sessionToken(request) {
+  return bearerToken(request) || cookieToken(request);
+}
+
+function sessionCookie(token) {
+  return `${authCookieName}=${encodeURIComponent(token)}; Path=/; Max-Age=${Math.floor(authSessionLifetime / 1000)}; HttpOnly; SameSite=Lax`;
+}
+
+function clearSessionCookie() {
+  return `${authCookieName}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
 }
 
 async function sendVerificationCode(request, response) {
@@ -160,12 +183,12 @@ async function verifyCode(request, response) {
   const token = randomUUID();
   store.sessions[token] = { userId: user.id, expiresAt: Date.now() + authSessionLifetime };
   await saveAuthStore();
-  return json(response, 200, { ok: true, token, user, isNewUser });
+  return json(response, 200, { ok: true, token, user, isNewUser }, { "Set-Cookie": sessionCookie(token) });
 }
 
 async function readSession(request, response) {
   const store = await loadAuthStore();
-  const token = bearerToken(request);
+  const token = sessionToken(request);
   const session = store.sessions[token];
   if (!session || session.expiresAt <= Date.now() || !store.users[session.userId]) {
     if (session) {
@@ -179,12 +202,12 @@ async function readSession(request, response) {
 
 async function signOut(request, response) {
   const store = await loadAuthStore();
-  const token = bearerToken(request);
+  const token = sessionToken(request);
   if (token && store.sessions[token]) {
     delete store.sessions[token];
     await saveAuthStore();
   }
-  return json(response, 200, { ok: true });
+  return json(response, 200, { ok: true }, { "Set-Cookie": clearSessionCookie() });
 }
 
 async function handleApi(request, response, url) {

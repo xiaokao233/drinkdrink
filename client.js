@@ -337,8 +337,8 @@ function restoreAuthSession() {
   if (typeof localStorage === "undefined") return false;
   try {
     const saved = JSON.parse(localStorage.getItem(authSessionKey) || "null");
-    if (!saved?.token || !saved?.user?.id || !saved?.user?.email) return false;
-    authToken = String(saved.token);
+    if ((!saved?.token && saved?.cookieSession !== true) || !saved?.user?.id || !saved?.user?.email) return false;
+    authToken = String(saved.token || "");
     authAccount = {
       id: String(saved.user.id),
       email: String(saved.user.email),
@@ -352,11 +352,11 @@ function restoreAuthSession() {
 }
 
 function saveAuthSession(token, user, needsOnboarding = authNeedsOnboarding) {
-  authToken = String(token);
+  authToken = String(token || "");
   authAccount = { id: String(user.id), email: String(user.email), createdAt: String(user.createdAt || "") };
   authNeedsOnboarding = needsOnboarding;
   if (typeof localStorage === "undefined") return;
-  localStorage.setItem(authSessionKey, JSON.stringify({ token: authToken, user: authAccount, needsOnboarding: authNeedsOnboarding }));
+  localStorage.setItem(authSessionKey, JSON.stringify({ token: authToken, cookieSession: true, user: authAccount, needsOnboarding: authNeedsOnboarding }));
 }
 
 function clearAuthSession() {
@@ -405,6 +405,7 @@ function maskedEmail(email = authAccount?.email) {
 async function authRequest(path, options = {}) {
   const response = await fetch(path, {
     ...options,
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
       ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
@@ -458,7 +459,7 @@ async function refreshPushState({ syncExisting = false } = {}) {
   pushState.supported = supportsPushNotifications();
   pushState.permission = notificationPermission();
   pushState.error = "";
-  if (!pushState.supported || !authToken || !cloudDataAvailable) {
+  if (!pushState.supported || !authAccount || !cloudDataAvailable) {
     pushState.subscribed = false;
     return false;
   }
@@ -486,7 +487,7 @@ async function enablePushNotifications() {
     render();
     return false;
   }
-  if (!authToken || !cloudDataAvailable) {
+  if (!authAccount || !cloudDataAvailable) {
     pushState.error = "登录后才能开启系统通知";
     render();
     return false;
@@ -524,7 +525,7 @@ async function enablePushNotifications() {
 }
 
 async function syncPushPreferences() {
-  if (!pushState.subscribed || !authToken || !cloudDataAvailable) return false;
+  if (!pushState.subscribed || !authAccount || !cloudDataAvailable) return false;
   const registration = await pushRegistration();
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) {
@@ -540,7 +541,7 @@ async function disablePushNotifications({ removeFromServer = true } = {}) {
   try {
     const registration = await pushRegistration();
     const subscription = await registration.pushManager.getSubscription();
-    if (subscription && removeFromServer && authToken && cloudDataAvailable) {
+    if (subscription && removeFromServer && authAccount && cloudDataAvailable) {
       await authRequest("/api/push-subscription", {
         method: "DELETE",
         body: JSON.stringify({ endpoint: subscription.endpoint })
@@ -618,13 +619,13 @@ async function appRequest(action, payload = {}) {
 }
 
 async function syncServerState(options = {}) {
-  if (!authToken || !cloudDataAvailable || typeof fetch !== "function") return false;
+  if (!authAccount || !cloudDataAvailable || typeof fetch !== "function") return false;
   const result = await authRequest("/api/app-state");
   return applyServerState(result, options);
 }
 
 async function saveProfileRemote() {
-  if (!authToken || !authAccount || !cloudDataAvailable) return false;
+  if (!authAccount || !cloudDataAvailable) return false;
   const result = await appRequest("saveProfile", profilePayload());
   applyServerState(result);
   authNeedsOnboarding = false;
@@ -633,7 +634,7 @@ async function saveProfileRemote() {
 }
 
 function startServerSync() {
-  if (serverSyncTimer || !authToken || !cloudDataAvailable || typeof setInterval !== "function") return;
+  if (serverSyncTimer || !authAccount || !cloudDataAvailable || typeof setInterval !== "function") return;
   serverSyncTimer = setInterval(async () => {
     if (typeof document !== "undefined" && document.hidden) return;
     try {
@@ -646,7 +647,7 @@ function startServerSync() {
 }
 
 async function openInviteFromUrl() {
-  if (!initialInviteCode || !authToken || !cloudDataAvailable || authNeedsOnboarding) return;
+  if (!initialInviteCode || !authAccount || !cloudDataAvailable || authNeedsOnboarding) return;
   state.draftInviteCode = initialInviteCode;
   await previewInviteRemote();
 }
@@ -731,12 +732,14 @@ async function verifyLoginCode() {
   }
 }
 
-async function validateAuthSession() {
-  if (!authToken || typeof fetch !== "function") return;
+async function validateAuthSession({ discoverCookie = false } = {}) {
+  const discovering = !authToken && !authAccount;
+  if ((discovering && !discoverCookie) || typeof fetch !== "function") return;
   try {
     const result = await authRequest("/api/auth/session");
     authAccount = result.user;
     cloudDataAvailable = result.cloudDataAvailable === true;
+    authNeedsOnboarding = result.isNewUser === true;
     let serverReady = false;
     try {
       serverReady = await syncServerState({ chooseHomeMode: true });
@@ -749,17 +752,20 @@ async function validateAuthSession() {
     if (serverReady) {
       authNeedsOnboarding = false;
       saveAuthSession(authToken, authAccount, false);
+      if (discovering || state.page === "login") enterHome();
       startServerSync();
       await refreshPushState({ syncExisting: true });
       await openInviteFromUrl();
       render();
-    } else if (authNeedsOnboarding) {
+    } else if (authNeedsOnboarding || result.isNewUser === true) {
+      saveAuthSession(authToken, authAccount, true);
       state.page = "entry";
       state.pageHistory = [];
       render();
     }
   } catch (error) {
     if (/失效/.test(error.message || "")) {
+      if (discovering) return;
       clearAuthSession();
       resetAccountData();
       state.page = "login";
@@ -774,7 +780,7 @@ async function signOutAccount() {
   persistAppData();
   await disablePushNotifications();
   try {
-    if (authToken) await authRequest("/api/auth/logout", { method: "POST", body: "{}" });
+    if (authToken || authAccount) await authRequest("/api/auth/logout", { method: "POST", body: "{}" });
   } catch {
     // 即使网络暂不可用，也先退出这台设备上的账号。
   }
@@ -892,7 +898,7 @@ async function acceptInviteRemote() {
 
 async function updateCurrentRelationRemote() {
   const relation = currentRelation();
-  if (!relation || !authToken || !cloudDataAvailable) return;
+  if (!relation || !authAccount || !cloudDataAvailable) return;
   const result = await appRequest("updateRelation", {
     relationId: relation.id,
     note: relation.note,
@@ -1954,7 +1960,7 @@ async function handleAction(event) {
         return;
       }
     }
-    if (authAccount && authToken) saveAuthSession(authToken, authAccount, false);
+    if (authAccount) saveAuthSession(authToken, authAccount, false);
     navigateTo("activation-install");
   }
   else if (action === "select-cup") selectCup(event.currentTarget.dataset.cupSelect);
@@ -2368,12 +2374,12 @@ if (hasStoredAuthSession) {
 if (figmaBoard) renderFigmaBoard();
 else {
   render();
-  if (hasStoredAuthSession) validateAuthSession();
+  validateAuthSession({ discoverCookie: !hasStoredAuthSession });
 }
 
 document.addEventListener?.("visibilitychange", syncBubbleMotion);
 document.addEventListener?.("visibilitychange", async () => {
-  if (document.hidden || !authToken || !cloudDataAvailable) return;
+  if (document.hidden || !authAccount || !cloudDataAvailable) return;
   try {
     await syncServerState({ chooseHomeMode: true });
     render();

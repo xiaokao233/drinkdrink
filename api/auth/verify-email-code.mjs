@@ -4,6 +4,7 @@ import {
   methodNotAllowed,
   normalizeEmail,
   requestJson,
+  sessionCookie,
   verifyEmailChallenge
 } from "../_auth.mjs";
 import { ensureUser } from "../_db.mjs";
@@ -27,7 +28,7 @@ export default {
         ...session,
         cloudDataAvailable: databaseUser.configured,
         isNewUser: databaseUser.configured ? !databaseUser.hasProfile : false
-      });
+      }, 200, { "Set-Cookie": sessionCookie(session.token) });
     } catch {
       return json({ ok: false, message: "请求没有完成，请稍后再试" }, 400);
     }

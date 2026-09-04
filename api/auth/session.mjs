@@ -7,6 +7,11 @@ export default {
     const user = sessionFromRequest(request);
     if (!user) return json({ ok: false, message: "登录已失效" }, 401);
     const databaseUser = await ensureUser(user);
-    return json({ ok: true, user, cloudDataAvailable: databaseUser.configured });
+    return json({
+      ok: true,
+      user,
+      cloudDataAvailable: databaseUser.configured,
+      isNewUser: databaseUser.configured ? !databaseUser.hasProfile : false
+    });
   }
 };

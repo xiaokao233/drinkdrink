@@ -37,6 +37,13 @@ const verified = await jsonRequest("/api/auth/verify-email-code", {
 });
 assert(verified.response.ok && verified.body.token, "正确验证码没有创建登录状态");
 assert(verified.body.isNewUser === true, "首次验证应创建新账号");
+const sessionCookie = (verified.response.headers.get("set-cookie") || "").split(";")[0];
+assert(sessionCookie.startsWith("genyikou_session="), "登录后没有写入安全会话 Cookie");
+
+const cookieSession = await jsonRequest("/api/auth/session", {
+  headers: { Cookie: sessionCookie }
+});
+assert(cookieSession.response.ok && cookieSession.body.user.email === email, "桌面版无法通过 Cookie 恢复登录");
 
 const session = await jsonRequest("/api/auth/session", {
   headers: { Authorization: `Bearer ${verified.body.token}` }
