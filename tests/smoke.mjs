@@ -66,6 +66,8 @@ assert(script.includes("pushManager.subscribe") && script.includes("/api/push-su
 assert(script.includes("handleForegroundPush") && script.includes('message.category === "drink"'), "前台收到推送后没有立即进入待回应状态");
 assert(script.includes("serverSyncIntervalMs = 5_000") && script.includes('window.addEventListener?.("focus"'), "前台状态同步仍然不够及时");
 assert(script.includes('data-action="return-home"') && script.includes("acknowledgeDisplayedResponse"), "回应页缺少主动回到首页并确认已读的操作");
+assert(script.includes("ignoredIncomingEventIds") && script.includes("unignoredIncomingIds"), "旧喝水提醒仍可能覆盖用户当前页面");
+assert(script.includes('class="header-home-button"') && styles.includes(".header-home-button"), "中间流程缺少回到首页快捷入口");
 assert(worker.includes("postMessage") && worker.includes("genyikou-push"), "Service Worker 没有把推送即时通知给已打开的页面");
 assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
 assert(styles.includes("#55d8ff") && styles.includes("#4fe1ce"), "清透色卡没有接入页面");

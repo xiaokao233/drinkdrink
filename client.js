@@ -169,6 +169,7 @@ let serverSyncTimer;
 let serverSyncPromise;
 const serverSyncIntervalMs = 5_000;
 let currentResponseSignature = "";
+const ignoredIncomingEventIds = new Set();
 const initialInviteCode = typeof location !== "undefined"
   ? (location.pathname.match(/^\/join\/([A-Z0-9]{4,10})\/?$/i)?.[1] || "").toUpperCase()
   : "";
@@ -599,6 +600,20 @@ function acknowledgeDisplayedResponse() {
   }
 }
 
+function ignoreCurrentIncomingSignals() {
+  for (const id of incomingIds) {
+    const eventId = state.incomingEvents?.[id];
+    if (eventId) ignoredIncomingEventIds.add(String(eventId));
+  }
+}
+
+function unignoredIncomingIds() {
+  return incomingIds.filter(id => {
+    const eventId = state.incomingEvents?.[id];
+    return !eventId || !ignoredIncomingEventIds.has(String(eventId));
+  });
+}
+
 function applyServerState(result, { chooseHomeMode = false } = {}) {
   if (!result?.ok) return false;
   if (result.profile && cupById[result.profile.cupId]) {
@@ -634,7 +649,7 @@ function applyServerState(result, { chooseHomeMode = false } = {}) {
   }
   if (chooseHomeMode && !state.page && state.activeTab === "drink") {
     if (serverResponseSignature && serverResponseSignature !== acknowledgedResponseSignature()) state.homeMode = "responded";
-    else if (incomingIds.length) state.homeMode = "incoming";
+    else if (unignoredIncomingIds().length) state.homeMode = "incoming";
     else if (state.homeMode === "incoming") state.homeMode = "calm";
   }
   return Boolean(result.profile);
@@ -911,7 +926,12 @@ async function handleForegroundPush(message) {
   if (message?.type !== "genyikou-push" || !authAccount || !cloudDataAvailable) return false;
   try {
     await syncServerState({ chooseHomeMode: true });
-    if (message.category === "drink" && incomingIds.length) {
+    const messageEventId = typeof URL === "function"
+      ? new URL(message.url || "/", typeof location !== "undefined" ? location.origin : "https://genyikou.click").searchParams.get("event")
+      : "";
+    const incomingIsNew = unignoredIncomingIds().length
+      && (!messageEventId || !ignoredIncomingEventIds.has(String(messageEventId)));
+    if (message.category === "drink" && incomingIsNew) {
       state.page = null;
       state.pageHistory = [];
       state.activeTab = "drink";
@@ -1083,10 +1103,11 @@ function headerTemplate() {
       "delete-intro": "注销账户", "delete-confirm": "再次确认", "delete-final": "最后确认",
       "delete-complete": "已注销"
     };
+    const showHome = !new Set(["login", "entry", "identity-setup", "delete-complete"]).has(state.page);
     return `<header class="app-header app-header--subpage">
       ${state.page === "delete-complete" ? `<span class="header-spacer" aria-hidden="true"></span>` : `<button class="back-button" data-action="back" aria-label="返回">${sketchIcon("back")}</button>`}
       <div class="app-title">${pageTitles[state.page] || "跟一口"}</div>
-      <span class="header-spacer" aria-hidden="true"></span>
+      ${showHome ? `<button class="header-home-button" data-action="return-home">首页</button>` : `<span class="header-spacer" aria-hidden="true"></span>`}
     </header>`;
   }
   return `<header class="app-header">
@@ -1126,6 +1147,7 @@ function sentTemplate() {
     <div class="sent-actions">
       ${state.lastDrinkShared ? "" : `<p class="personal-drink-note">这一口，仅自己可见</p>`}
       <button class="paper-action paper-action--hero paper-action--next-drink" data-action="drink" data-drink-return ${state.drinkFeedbackActive ? "disabled" : ""}><span>我喝了</span></button>
+      <button class="response-home-action response-home-action--quiet" data-action="return-home">回到首页</button>
     </div>
   </section>`;
 }
@@ -1215,7 +1237,10 @@ function incomingTemplate() {
           <button class="paper-action paper-action--follow" data-hold-follow ${visibleIds.length ? "" : "disabled"}><span>跟一口</span></button>
           <button class="paper-action paper-action--drink" data-action="drink"><span>我喝了</span></button>
         </div>
-        <p class="hold-hint">轻点跟所有人 · 长按选人</p>`}
+        <div class="incoming-footer-actions">
+          <p class="hold-hint">轻点跟所有人 · 长按选人</p>
+          <button class="response-home-action response-home-action--quiet" data-action="return-home">回到首页</button>
+        </div>`}
     <div class="hero-cup hero-cup--incoming">${cupMarkup("me")}</div>
   </section>`;
 }
@@ -1259,7 +1284,10 @@ function followedTemplate() {
     <div class="secondary-caption">
       <p>你跟了 <strong>${names}</strong> 一口</p>
     </div>
-    <button class="paper-action paper-action--hero paper-action--after" data-action="drink"><span>我喝了</span></button>
+    <div class="responded-actions">
+      <button class="paper-action paper-action--hero paper-action--after" data-action="drink"><span>我喝了</span></button>
+      <button class="response-home-action" data-action="return-home">回到首页</button>
+    </div>
   </section>`;
 }
 
@@ -2067,6 +2095,7 @@ async function handleAction(event) {
   }
   else if (action === "return-home") {
     acknowledgeDisplayedResponse();
+    ignoreCurrentIncomingSignals();
     state.page = null;
     state.pageHistory = [];
     state.activeTab = "drink";
@@ -2078,6 +2107,7 @@ async function handleAction(event) {
     // Merge accidental taps during the brief feedback, not later drinking rounds.
     if (state.drinkFeedbackActive) return;
     if (state.homeMode === "responded") acknowledgeDisplayedResponse();
+    ignoreCurrentIncomingSignals();
     state.activeTab = "drink";
     state.lastDrinkShared = canShareDrink();
     state.homeMode = "sent";

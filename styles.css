@@ -762,10 +762,23 @@ button { color: inherit; }
 /* 功能与页面结构阶段：图形统一使用可替换占位 */
 .screen--nested .screen-content { bottom: 0; }
 .app-header--subpage { padding-inline: 17px; border-bottom: 1px dashed var(--soft-line); background: rgba(255,253,248,.86); backdrop-filter: blur(10px); }
-.app-header--subpage .app-title { font-size: 17px; transform: rotate(-1deg); }
+.app-header--subpage { display: grid; grid-template-columns: 38px minmax(0, 1fr) 44px; }
+.app-header--subpage .app-title { min-width: 0; justify-content: center; text-align: center; font-size: 17px; transform: rotate(-1deg); }
 .back-button,
 .header-spacer { width: 38px; height: 34px; }
 .back-button { border: 2px solid var(--ink); border-radius: 47% 53% 44% 56% / 54% 45% 55% 46%; background: transparent; font-size: 19px; line-height: 1; cursor: pointer; }
+.header-home-button {
+  width: 44px;
+  min-height: 32px;
+  padding: 3px 2px;
+  border: 0;
+  border-bottom: 1.5px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-size: 12px;
+  cursor: pointer;
+}
 
 .nav-asset-placeholder {
   display: block;
@@ -1340,6 +1353,7 @@ button { color: inherit; }
 }
 .home-scene--incoming .dual-actions { align-self: center; margin: 4px 0 0; }
 .home-scene--incoming .hold-hint { margin: 6px 0 0 4px; }
+.incoming-footer-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .home-scene--incoming .hero-cup--incoming {
   width: 205px;
   height: 220px;
@@ -1405,6 +1419,19 @@ button { color: inherit; }
 }
 .response-home-action:active { transform: translate(1px, 2px) rotate(-1deg); box-shadow: 1px 1px 0 rgba(39,101,122,.08); }
 .response-home-action:focus-visible { outline: 3px solid rgba(85,216,255,.35); outline-offset: 3px; }
+.response-home-action--quiet {
+  min-width: auto;
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 0;
+  border-bottom: 1.5px solid var(--ink);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  transform: none;
+}
+.sent-actions .response-home-action--quiet { justify-self: center; }
 .home-scene--clink::before {
   top: 46%;
   width: 360px;

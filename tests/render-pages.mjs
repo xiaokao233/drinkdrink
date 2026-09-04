@@ -65,7 +65,17 @@ const assertions = `
     if (home.includes("待回应</span>") || home.includes("等下一次信号") || home.includes("回应完成")) {
       throw new Error(mode + " 首页不应重复催促或解释回应");
     }
+    if (mode !== "calm" && !home.includes('data-action="return-home"')) {
+      throw new Error(mode + " 状态应提供明确的回到首页按钮");
+    }
   }
+  for (const page of ["activation-install", "activation-notification", "create-relation", "join-relation", "waiting-member", "relation-detail", "member-detail", "notification-settings", "data-info", "delete-intro"]) {
+    state.page = page;
+    if (!headerTemplate().includes('class="header-home-button"')) {
+      throw new Error(page + " 中间流程应提供首页快捷入口");
+    }
+  }
+  state.page = null;
   state.homeMode = "responded";
   if (!respondedTemplate().includes('data-action="return-home"')) {
     throw new Error("有人跟随页面应提供明确的回到首页按钮");
@@ -180,6 +190,32 @@ await vm.runInContext(`
   })()
 `, context);
 console.log("PASS 有人跟随页面持续保留与主动返回检查");
+
+await vm.runInContext(`
+  (async () => {
+    authAccount = { id: "user-me", email: "me@example.com" };
+    cloudDataAvailable = true;
+    state.page = null;
+    state.activeTab = "drink";
+    state.homeMode = "incoming";
+    incomingIds = ["ming"];
+    state.incomingEvents = { ming: "old-drink" };
+    ignoreCurrentIncomingSignals();
+    state.homeMode = "sent";
+    syncServerState = async () => true;
+    await handleForegroundPush({ type: "genyikou-push", category: "drink", url: "/?event=old-drink" });
+    if (state.homeMode !== "sent") throw new Error("延迟到达的旧推送不应覆盖刚刚的我喝了状态");
+
+    applyServerState({
+      ok: true,
+      profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+      people: [], relations: [], incomingIds: ["ming"], incomingEvents: { ming: "new-drink" },
+      responseIds: [], responseSignature: ""
+    }, { chooseHomeMode: true });
+    if (state.homeMode !== "incoming") throw new Error("新的喝水提醒仍应自动进入待回应界面");
+  })()
+`, context);
+console.log("PASS 旧提醒不回弹、新提醒仍即时出现检查");
 
 let prefersReducedMotion = false;
 const motionProbe = { paused: false, cssPaused: false, time: 10 };
