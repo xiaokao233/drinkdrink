@@ -53,6 +53,7 @@ assert(script.includes('"login"') && script.includes("send-login-code") && scrip
 assert(script.includes("restoreAuthSession") && script.includes("validateAuthSession"), "登录状态恢复与校验缺失");
 assert(script.includes("pushManager.subscribe") && script.includes("/api/push-subscription"), "系统推送订阅流程缺失");
 assert(script.includes("handleForegroundPush") && script.includes('message.category === "drink"'), "前台收到推送后没有立即进入待回应状态");
+assert(script.includes('data-action="return-home"') && script.includes("acknowledgeDisplayedResponse"), "回应页缺少主动回到首页并确认已读的操作");
 assert(worker.includes("postMessage") && worker.includes("genyikou-push"), "Service Worker 没有把推送即时通知给已打开的页面");
 assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
 assert(styles.includes("#55d8ff") && styles.includes("#4fe1ce"), "清透色卡没有接入页面");

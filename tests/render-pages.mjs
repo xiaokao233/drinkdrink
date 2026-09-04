@@ -2,11 +2,17 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 const root = { innerHTML: "" };
+const browserStorage = new Map();
 const context = vm.createContext({
   console,
   setTimeout,
   clearTimeout,
   navigator: {},
+  localStorage: {
+    getItem(key) { return browserStorage.get(key) ?? null; },
+    setItem(key, value) { browserStorage.set(key, String(value)); },
+    removeItem(key) { browserStorage.delete(key); }
+  },
   document: {
     querySelector(selector) {
       return selector === "#app" ? root : null;
@@ -59,6 +65,10 @@ const assertions = `
     if (home.includes("待回应</span>") || home.includes("等下一次信号") || home.includes("回应完成")) {
       throw new Error(mode + " 首页不应重复催促或解释回应");
     }
+  }
+  state.homeMode = "responded";
+  if (!respondedTemplate().includes('data-action="return-home"')) {
+    throw new Error("有人跟随页面应提供明确的回到首页按钮");
   }
   state.selectorOpen = true;
   state.selectedIds = ["ming", "hong"];
@@ -126,6 +136,45 @@ await vm.runInContext(`
   })()
 `, context);
 console.log("PASS 前台推送即时切换待回应界面检查");
+
+await vm.runInContext(`
+  (async () => {
+    authAccount = { id: "user-me", email: "me@example.com" };
+    cloudDataAvailable = true;
+    state.page = null;
+    state.activeTab = "drink";
+    state.homeMode = "responded";
+    state.responseIds = ["ming"];
+    currentResponseSignature = "event-1:ming:2026-09-04T08:00:00.000Z";
+    applyServerState({
+      ok: true,
+      profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+      people: [], relations: [], incomingIds: [], incomingEvents: {},
+      responseIds: ["ming"], responseSignature: currentResponseSignature
+    }, { chooseHomeMode: true });
+    if (state.homeMode !== "responded") throw new Error("定时同步不应自动退出有人跟随页面");
+
+    await handleAction({ currentTarget: { dataset: { action: "return-home" } } });
+    if (state.homeMode !== "calm") throw new Error("点击回到首页后应进入默认主页");
+
+    applyServerState({
+      ok: true,
+      profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+      people: [], relations: [], incomingIds: [], incomingEvents: {},
+      responseIds: ["ming"], responseSignature: "event-1:ming:2026-09-04T08:00:00.000Z"
+    }, { chooseHomeMode: true });
+    if (state.homeMode !== "calm") throw new Error("已确认的回应不应再次弹回");
+
+    applyServerState({
+      ok: true,
+      profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+      people: [], relations: [], incomingIds: [], incomingEvents: {},
+      responseIds: ["ming"], responseSignature: "event-2:ming:2026-09-04T08:05:00.000Z"
+    }, { chooseHomeMode: true });
+    if (state.homeMode !== "responded") throw new Error("新的回应仍应进入有人跟随页面");
+  })()
+`, context);
+console.log("PASS 有人跟随页面持续保留与主动返回检查");
 
 let prefersReducedMotion = false;
 const motionProbe = { paused: false, cssPaused: false, time: 10 };

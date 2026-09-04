@@ -151,6 +151,7 @@ let state = {
 const persistenceKey = "genyikou-demo-data-v1";
 const persistenceVersion = 1;
 const authSessionKey = "genyikou-auth-session-v2";
+const responseAcknowledgementKey = "genyikou-response-ack-v1";
 let authToken = "";
 let authAccount = null;
 let authNeedsOnboarding = false;
@@ -165,7 +166,7 @@ let pushState = {
 };
 let authCooldownTimer;
 let serverSyncTimer;
-let lastResponseSignature = "";
+let currentResponseSignature = "";
 const initialInviteCode = typeof location !== "undefined"
   ? (location.pathname.match(/^\/join\/([A-Z0-9]{4,10})\/?$/i)?.[1] || "").toUpperCase()
   : "";
@@ -574,6 +575,28 @@ function profilePayload() {
   };
 }
 
+function responseAcknowledgementStorageKey() {
+  return `${responseAcknowledgementKey}:${authAccount?.id || "local"}`;
+}
+
+function acknowledgedResponseSignature() {
+  if (typeof localStorage === "undefined") return "";
+  try {
+    return localStorage.getItem(responseAcknowledgementStorageKey()) || "";
+  } catch {
+    return "";
+  }
+}
+
+function acknowledgeDisplayedResponse() {
+  if (!currentResponseSignature || typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(responseAcknowledgementStorageKey(), currentResponseSignature);
+  } catch {
+    // Returning home should still work when browser storage is unavailable.
+  }
+}
+
 function applyServerState(result, { chooseHomeMode = false } = {}) {
   if (!result?.ok) return false;
   if (result.profile && cupById[result.profile.cupId]) {
@@ -596,18 +619,22 @@ function applyServerState(result, { chooseHomeMode = false } = {}) {
   state.relations = Array.isArray(result.relations) ? result.relations : [];
   incomingIds = Array.isArray(result.incomingIds) ? result.incomingIds.filter(id => people[id]) : [];
   state.incomingEvents = result.incomingEvents && typeof result.incomingEvents === "object" ? result.incomingEvents : {};
-  state.responseIds = Array.isArray(result.responseIds) ? result.responseIds.filter(id => people[id]) : [];
+  const serverResponseIds = Array.isArray(result.responseIds) ? result.responseIds.filter(id => people[id]) : [];
+  const serverResponseSignature = String(result.responseSignature || [...serverResponseIds].sort().join(","));
+  // Keep the visible response snapshot until the user explicitly leaves it.
+  if (serverResponseIds.length || state.homeMode !== "responded") {
+    state.responseIds = serverResponseIds;
+    currentResponseSignature = serverResponseSignature;
+  }
   state.selectedIds = [...incomingIds];
   if (!state.relations.some(relation => relation.id === state.selectedRelationId)) {
     state.selectedRelationId = state.relations[0]?.id || null;
   }
-  const responseSignature = [...state.responseIds].sort().join(",");
   if (chooseHomeMode && !state.page && state.activeTab === "drink") {
-    if (responseSignature && responseSignature !== lastResponseSignature) state.homeMode = "responded";
+    if (serverResponseSignature && serverResponseSignature !== acknowledgedResponseSignature()) state.homeMode = "responded";
     else if (incomingIds.length) state.homeMode = "incoming";
-    else if (state.homeMode === "incoming" || state.homeMode === "responded") state.homeMode = "calm";
+    else if (state.homeMode === "incoming") state.homeMode = "calm";
   }
-  lastResponseSignature = responseSignature;
   return Boolean(result.profile);
 }
 
@@ -1231,7 +1258,10 @@ function respondedTemplate() {
     <div class="secondary-caption">
       <p><strong>${names}</strong> 跟了你一口</p>
     </div>
-    <button class="paper-action paper-action--hero paper-action--after" data-action="drink"><span>我喝了</span></button>
+    <div class="responded-actions">
+      <button class="paper-action paper-action--hero paper-action--after" data-action="drink"><span>我喝了</span></button>
+      <button class="response-home-action" data-action="return-home">回到首页</button>
+    </div>
   </section>`;
 }
 
@@ -2021,9 +2051,19 @@ async function handleAction(event) {
     startServerSync();
     navigateTo(state.entryIntent === "join" ? "join-relation" : "create-relation");
   }
+  else if (action === "return-home") {
+    acknowledgeDisplayedResponse();
+    state.page = null;
+    state.pageHistory = [];
+    state.activeTab = "drink";
+    state.homeMode = "calm";
+    state.selectorOpen = false;
+    state.demoPanel = false;
+  }
   else if (action === "drink") {
     // Merge accidental taps during the brief feedback, not later drinking rounds.
     if (state.drinkFeedbackActive) return;
+    if (state.homeMode === "responded") acknowledgeDisplayedResponse();
     state.activeTab = "drink";
     state.lastDrinkShared = canShareDrink();
     state.homeMode = "sent";

@@ -1325,6 +1325,34 @@ button { color: inherit; }
   min-height: 88px;
   margin: 13px auto 0;
 }
+.responded-actions {
+  width: min(336px, 96%);
+  margin: 13px auto 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+.home-scene--clink .responded-actions .paper-action--after {
+  width: 100%;
+  margin: 0;
+}
+.response-home-action {
+  min-width: 86px;
+  min-height: 58px;
+  padding: 10px 13px;
+  color: var(--ink);
+  background: rgba(255,255,255,.74);
+  border: 2px solid var(--ink);
+  border-radius: 48% 52% 45% 55% / 55% 45% 55% 45%;
+  box-shadow: 3px 4px 0 rgba(39,101,122,.08);
+  font-family: var(--font-hand);
+  font-size: 15px;
+  cursor: pointer;
+  transform: rotate(-1deg);
+}
+.response-home-action:active { transform: translate(1px, 2px) rotate(-1deg); box-shadow: 1px 1px 0 rgba(39,101,122,.08); }
+.response-home-action:focus-visible { outline: 3px solid rgba(85,216,255,.35); outline-offset: 3px; }
 .home-scene--clink::before {
   top: 46%;
   width: 360px;
@@ -1343,6 +1371,7 @@ button { color: inherit; }
   .home-scene--clink { grid-template-rows: auto minmax(230px, 1fr) auto auto; }
   .home-scene--clink .clink-scene { min-height: 230px; }
   .home-scene--clink .paper-action--after { min-height: 72px; }
+  .response-home-action { min-height: 52px; }
 }
 
 /* V0.5 — One handwritten family throughout. Keep the refined copy and

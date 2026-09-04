@@ -103,7 +103,7 @@ async function readState(user) {
   }
 
   const responseRows = await sql`SELECT DISTINCT ON (target.recipient_user_id)
-      target.recipient_user_id AS id, target.responded_at, p.name, p.cup_id, p.colors
+      event.id AS event_id, target.recipient_user_id AS id, target.responded_at, p.name, p.cup_id, p.colors
     FROM drink_events event
     JOIN drink_targets target ON target.event_id = event.id
     LEFT JOIN profiles p ON p.user_id = target.recipient_user_id
@@ -121,7 +121,11 @@ async function readState(user) {
     people: [...peopleById.values()],
     incomingIds: incomingRows.map(row => row.id),
     incomingEvents,
-    responseIds: responseRows.map(row => row.id)
+    responseIds: responseRows.map(row => row.id),
+    responseSignature: responseRows
+      .map(row => `${row.event_id}:${row.id}:${new Date(row.responded_at).toISOString()}`)
+      .sort()
+      .join("|")
   };
 }
 
