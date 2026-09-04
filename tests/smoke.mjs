@@ -63,6 +63,9 @@ assert(script.includes("data-region-select") && script.includes("随机配色"),
 assert(script.includes('"login"') && script.includes("send-login-code") && script.includes("verify-login-code"), "邮箱验证码登录入口缺失");
 assert(script.includes("restoreAuthSession") && script.includes("validateAuthSession"), "登录状态恢复与校验缺失");
 assert(script.includes("pushManager.subscribe") && script.includes("/api/push-subscription"), "系统推送订阅流程缺失");
+assert(script.includes("beforeinstallprompt") && script.includes("promptEvent.prompt()") && script.includes("appinstalled"), "安卓一键安装仍未接入系统安装窗口");
+assert(!script.includes("simulate-installed") && !script.includes("已模拟安装完成"), "安装入口仍在伪造完成状态");
+assert(script.includes("withTimeout") && script.includes("一键开启通知") && script.includes("等待系统确认"), "通知开启流程缺少一键订阅或超时恢复");
 assert(script.includes("handleForegroundPush") && script.includes('message.category === "drink"'), "前台收到推送后没有立即进入待回应状态");
 assert(script.includes("serverSyncIntervalMs = 5_000") && script.includes('window.addEventListener?.("focus"'), "前台状态同步仍然不够及时");
 assert(script.includes('data-action="return-home"') && script.includes("acknowledgeDisplayedResponse"), "回应页缺少主动回到首页并确认已读的操作");
@@ -70,6 +73,7 @@ assert(script.includes("ignoredIncomingEventIds") && script.includes("unignoredI
 assert(script.includes("incomingAcknowledgementKey") && script.includes("restoreIgnoredIncomingSignals"), "已略过提醒没有跨重启保存");
 assert(script.includes('class="header-home-button"') && styles.includes(".header-home-button"), "中间流程缺少回到首页快捷入口");
 assert(worker.includes("postMessage") && worker.includes("genyikou-push"), "Service Worker 没有把推送即时通知给已打开的页面");
+assert(worker.includes('addEventListener("fetch"') && worker.includes("CACHE_NAME") && worker.includes("APP_SHELL"), "安卓安装识别与离线外壳缺失");
 assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
 assert(styles.includes("#55d8ff") && styles.includes("#4fe1ce"), "清透色卡没有接入页面");
 assert(styles.includes("--safe-top") && styles.includes("safe-area-inset-top") && styles.includes("height: 100dvh") && !styles.includes("min-height: 610px"), "移动端全屏高度与安全区适配缺失");

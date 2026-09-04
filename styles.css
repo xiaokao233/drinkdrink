@@ -947,6 +947,8 @@ button { color: inherit; }
 .notification-enable { margin-top: 16px; }
 .notification-device-action { margin-top: 10px; }
 .push-error { margin: 13px 4px 0; color: #a93f35; font-size: 11px; line-height: 1.6; text-align: center; }
+.install-message { margin: 14px 4px 0; color: var(--muted); font-size: 12px; line-height: 1.7; text-align: center; }
+.install-fallback-note { margin-top: 16px; text-align: center; }
 
 .step-list { margin: 0; padding: 0; list-style: none; }
 .step-list li { min-height: 64px; display: flex; align-items: center; gap: 13px; border-bottom: 2px dashed var(--soft-line); font-size: 13px; }

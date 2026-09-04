@@ -165,6 +165,9 @@ let pushState = {
   busy: false,
   error: ""
 };
+let deferredInstallPrompt = null;
+let installBusy = false;
+let installMessage = "";
 let authCooldownTimer;
 let serverSyncTimer;
 let serverSyncPromise;
@@ -177,7 +180,6 @@ const initialInviteCode = typeof location !== "undefined"
 const persistenceActions = new Set([
   "save-cup",
   "confirm-identity",
-  "activation-installed",
   "activation-browser",
   "activation-allow",
   "activation-later",
@@ -190,7 +192,6 @@ const persistenceActions = new Set([
   "toggle-relation-send",
   "save-member-settings",
   "confirm-leave-relation",
-  "simulate-installed",
   "toggle-notification-drink",
   "toggle-notification-response",
   "toggle-notification-relation",
@@ -425,6 +426,94 @@ async function authRequest(path, options = {}) {
   return result;
 }
 
+function withTimeout(promise, milliseconds, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), milliseconds);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function runningAsInstalledApp() {
+  return typeof window !== "undefined" && (
+    window.matchMedia?.("(display-mode: standalone)").matches
+    || window.matchMedia?.("(display-mode: fullscreen)").matches
+    || window.navigator?.standalone === true
+  );
+}
+
+function devicePlatform() {
+  const agent = String(typeof navigator === "undefined" ? "" : navigator.userAgent);
+  if (/android/i.test(agent)) return "android";
+  if (/iphone|ipad|ipod/i.test(agent)) return "ios";
+  return "other";
+}
+
+function syncInstallState() {
+  state.installState = runningAsInstalledApp() ? "installed" : "browser";
+}
+
+function installStatusDetails() {
+  if (runningAsInstalledApp()) return { installed: true, available: false, title: "已安装", button: "继续" };
+  if (deferredInstallPrompt) return { installed: false, available: true, title: "可以安装", button: "一键安装" };
+  return {
+    installed: false,
+    available: false,
+    title: "安装到桌面",
+    button: devicePlatform() === "android" ? "查看安装方法" : "查看安装方法"
+  };
+}
+
+function installInstructionsMarkup() {
+  const platform = devicePlatform();
+  if (platform === "android") {
+    return `<ol class="step-list"><li><span>1</span>使用 Chrome 打开这个网页</li><li><span>2</span>点右上角「⋮」菜单</li><li><span>3</span>选择「安装应用」或「添加到主屏幕」</li></ol>`;
+  }
+  if (platform === "ios") {
+    return `<ol class="step-list"><li><span>1</span>使用 Safari 打开这个网页</li><li><span>2</span>点底部分享按钮</li><li><span>3</span>选择「添加到主屏幕」</li></ol>`;
+  }
+  return `<ol class="step-list"><li><span>1</span>打开浏览器菜单</li><li><span>2</span>选择「安装应用」</li><li><span>3</span>确认添加到桌面</li></ol>`;
+}
+
+async function requestAppInstall() {
+  if (runningAsInstalledApp()) {
+    syncInstallState();
+    return "installed";
+  }
+  if (!deferredInstallPrompt) {
+    installMessage = devicePlatform() === "android"
+      ? "当前浏览器没有提供安装弹窗，请按下方步骤安装"
+      : "请按下方步骤安装";
+    return "unavailable";
+  }
+  if (installBusy) return "busy";
+
+  const promptEvent = deferredInstallPrompt;
+  deferredInstallPrompt = null;
+  installBusy = true;
+  installMessage = "";
+  render();
+  try {
+    const choicePromise = promptEvent.userChoice;
+    promptEvent.prompt();
+    const choice = await withTimeout(choicePromise, 60_000, "安装窗口等待超时，请从浏览器菜单安装");
+    if (choice?.outcome !== "accepted") {
+      installMessage = "已取消安装，需要时可以从浏览器菜单再次添加";
+      return "dismissed";
+    }
+    state.installState = "installed";
+    persistAppData();
+    showToast("已添加到主屏幕");
+    return "installed";
+  } catch (error) {
+    installMessage = error.message || "没有调起安装窗口，请从浏览器菜单安装";
+    return "unavailable";
+  } finally {
+    installBusy = false;
+    render();
+  }
+}
+
 function supportsPushNotifications() {
   return typeof navigator !== "undefined"
     && "serviceWorker" in navigator
@@ -453,7 +542,13 @@ function urlBase64ToUint8Array(value) {
 
 async function pushRegistration() {
   if (!supportsPushNotifications()) throw new Error("当前浏览器暂不支持系统通知");
-  return navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
+  const registration = await withTimeout(
+    navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }),
+    10_000,
+    "通知服务连接超时，请检查网络后重试"
+  );
+  if (registration.active) return registration;
+  return withTimeout(navigator.serviceWorker.ready, 10_000, "通知服务还没准备好，请稍后重试");
 }
 
 async function savePushSubscription(subscription) {
@@ -504,20 +599,40 @@ async function enablePushNotifications() {
   pushState.error = "";
   render();
   try {
-    const permission = await Notification.requestPermission();
+    const permission = await withTimeout(
+      Notification.requestPermission(),
+      30_000,
+      "没有收到系统授权结果，请检查浏览器通知权限后重试"
+    );
     pushState.permission = permission;
     if (permission !== "granted") throw new Error(permission === "denied" ? "通知已被浏览器阻止，请到系统设置中允许" : "还没有允许通知");
-    const status = await authRequest("/api/push-subscription");
+    const status = await withTimeout(
+      authRequest("/api/push-subscription"),
+      10_000,
+      "推送服务连接超时，请检查网络后重试"
+    );
     pushState.configured = status.configured === true && Boolean(status.publicKey);
     if (!pushState.configured) throw new Error("推送服务还没有配置好");
     const registration = await pushRegistration();
-    let subscription = await registration.pushManager.getSubscription();
-    subscription ||= await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(status.publicKey)
-    });
+    let subscription = await withTimeout(
+      registration.pushManager.getSubscription(),
+      10_000,
+      "读取通知状态超时，请稍后重试"
+    );
+    subscription ||= await withTimeout(
+      registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(status.publicKey)
+      }),
+      20_000,
+      "系统没有完成通知订阅，请确认 Chrome 通知权限已打开"
+    );
     state.notifications = { drink: true, response: true, relation: true };
-    await savePushSubscription(subscription);
+    await withTimeout(
+      savePushSubscription(subscription),
+      10_000,
+      "通知已经允许，但设备保存超时，请再点一次"
+    );
     pushState.subscribed = true;
     persistAppData();
     showToast("系统通知已开启");
@@ -1395,6 +1510,7 @@ function relationCardTemplate(relation, index) {
 
 function profileTemplate() {
   const notificationStatus = pushStatusDetails();
+  const installStatus = installStatusDetails();
   return `<section class="subpage profile-page">
     <div class="subpage-heading">
       <h1>我的杯子</h1>
@@ -1406,7 +1522,7 @@ function profileTemplate() {
     </button>
     <div class="settings-list">
       ${authAccount ? `<button class="account-row has-leading-icon" data-action="sign-out">${sketchIcon("email")}<span>邮箱</span><i>${maskedEmail()} · 退出</i></button>` : ""}
-      <button class="has-leading-icon" data-action="install">${sketchIcon("install")}<span>放到桌面</span><i>${state.installState === "installed" ? "已安装" : "推荐"}</i></button>
+      <button class="has-leading-icon" data-action="install">${sketchIcon("install")}<span>放到桌面</span><i>${installStatus.installed ? "已安装" : installStatus.available ? "一键安装" : "查看方法"}</i></button>
       <button class="has-leading-icon" data-action="notifications">${sketchIcon("bell")}<span>通知</span><i>${notificationStatus.title}</i></button>
       <button class="has-leading-icon" data-action="data-note">${sketchIcon("data")}<span>数据使用</span><i>›</i></button>
     </div>
@@ -1502,13 +1618,16 @@ function identitySetupTemplate() {
 }
 
 function activationInstallTemplate() {
+  const installStatus = installStatusDetails();
   return `<section class="flow-page">
-    ${flowLead("放到桌面，随手打开", "推荐安装，也可以继续用网页。")}
-    <div class="comparison-list">
-      <div><strong>安装</strong><span>通知更及时</span></div>
-      <div><strong>继续使用网页</strong><span>随时回来查看</span></div>
-    </div>
-    <button class="flow-primary" data-action="activation-installed">已安装</button>
+    ${flowLead(installStatus.installed ? "已经放到桌面" : "放到桌面，随手打开", installStatus.installed ? "以后可以像普通 App 一样打开。" : "安卓 Chrome 可以直接调起系统安装。")}
+    ${installStatus.installed
+      ? `<div class="status-mark status-mark--complete"><strong>安装完成</strong><span>可以从手机桌面打开「跟一口」</span></div>`
+      : installStatus.available
+        ? `<div class="comparison-list"><div><strong>安装到主屏幕</strong><span>独立窗口打开，通知也更稳定</span></div><div><strong>不会占很多空间</strong><span>更新会自动生效</span></div></div>`
+        : installInstructionsMarkup()}
+    ${installMessage ? `<p class="install-message" role="status">${escapeHtml(installMessage)}</p>` : ""}
+    <button class="flow-primary" data-action="request-app-install" ${installBusy ? "disabled" : ""}>${installBusy ? "正在调起系统安装…" : installStatus.button}</button>
     <button class="flow-secondary activation-secondary" data-action="activation-browser">稍后</button>
   </section>`;
 }
@@ -1523,7 +1642,7 @@ function activationNotificationTemplate() {
       <div><strong>关系有变化</strong><span>成员确认</span></div>
     </div>
     ${pushState.error ? `<p class="push-error" role="alert">${escapeHtml(pushState.error)}</p>` : ""}
-    <button class="flow-primary" data-action="activation-allow" ${pushState.busy ? "disabled" : ""}>${pushState.busy ? "正在开启…" : status.title === "已允许" ? "通知已开启" : "开启通知"}</button>
+    <button class="flow-primary" data-action="activation-allow" ${pushState.busy ? "disabled" : ""}>${pushState.busy ? "等待系统确认…" : status.title === "已允许" ? "通知已开启" : "一键开启通知"}</button>
     <button class="text-action" data-action="activation-later">稍后</button>
   </section>`;
 }
@@ -1672,11 +1791,18 @@ function leaveRelationTemplate() {
 }
 
 function installGuideTemplate() {
-  const installed = state.installState === "installed";
+  const installStatus = installStatusDetails();
   return `<section class="flow-page">
-    ${flowLead(installed ? "已放到桌面" : "安装到桌面", installed ? "" : "更方便打开，也能及时收到通知。")}
-    <ol class="step-list"><li><span>1</span>用 Safari 打开这个网页</li><li><span>2</span>点底部分享按钮</li><li><span>3</span>选择“添加到主屏幕”</li></ol>
-    <button class="flow-primary" data-action="simulate-installed">${installed ? "已完成" : "完成"}</button>
+    ${flowLead(installStatus.installed ? "已放到桌面" : "安装到桌面", installStatus.installed ? "可以直接从手机主屏幕打开。" : "安装后会以独立 App 窗口打开。")}
+    ${installStatus.installed
+      ? `<div class="status-mark status-mark--complete"><strong>已经安装</strong><span>不需要重复操作</span></div>`
+      : installStatus.available
+        ? `<div class="notice-box"><strong>系统安装已准备好</strong><p>点一次按钮，再在系统窗口中确认即可。</p></div>`
+        : installInstructionsMarkup()}
+    ${installMessage ? `<p class="install-message" role="status">${escapeHtml(installMessage)}</p>` : ""}
+    ${installStatus.installed || installStatus.available
+      ? `<button class="flow-primary" data-action="request-app-install" ${installBusy ? "disabled" : ""}>${installBusy ? "正在调起系统安装…" : installStatus.installed ? "已安装" : "一键安装"}</button>`
+      : `<p class="page-note install-fallback-note">浏览器没有开放一键安装时，只能从浏览器菜单添加；这里不会再假装安装成功。</p>`}
   </section>`;
 }
 
@@ -1688,7 +1814,7 @@ function notificationSettingsTemplate() {
     <div class="permission-card"><span><small>系统权限</small><strong>${escapeHtml(status.title)}</strong></span><i>${escapeHtml(status.note)}</i></div>
     ${pushState.subscribed
       ? `<button class="text-action notification-device-action" data-action="disable-system-notifications">关闭这台设备的通知</button>`
-      : `<button class="flow-primary notification-enable" data-action="enable-system-notifications" ${pushState.busy ? "disabled" : ""}>${pushState.busy ? "正在开启…" : "开启系统通知"}</button>`}
+      : `<button class="flow-primary notification-enable" data-action="enable-system-notifications" ${pushState.busy ? "disabled" : ""}>${pushState.busy ? "等待系统确认…" : "一键开启通知"}</button>`}
     ${pushState.error && !status.note.includes(pushState.error) ? `<p class="push-error" role="alert">${escapeHtml(pushState.error)}</p>` : ""}
     <section class="detail-section">
       ${toggleRow("toggle-notification-drink", "喝水信号", "有人喝了", state.notifications.drink, togglesDisabled)}
@@ -2101,9 +2227,12 @@ async function handleAction(event) {
     editor.identityColorsByCup[editor.selectedCupId][editor.selectedCupRegion] = event.currentTarget.dataset.colorSelect;
   }
   else if (action === "randomize-cup") randomizeCupColors();
-  else if (action === "activation-installed") {
-    state.installState = "installed";
-    navigateTo("activation-notification");
+  else if (action === "request-app-install") {
+    const result = await requestAppInstall();
+    if (result === "installed" && state.page === "activation-install") navigateTo("activation-notification");
+    else if (result === "unavailable" && state.page === "activation-install") navigateTo("install-guide");
+    render();
+    return;
   }
   else if (action === "activation-browser") {
     state.installState = "browser";
@@ -2345,8 +2474,24 @@ async function handleAction(event) {
     state.activeTab = "connect";
     showToast("已退出这段关系");
   }
-  else if (action === "install") navigateTo("install-guide");
+  else if (action === "install") {
+    if (runningAsInstalledApp()) {
+      showToast("已经安装在这台设备上");
+      return;
+    }
+    if (deferredInstallPrompt) {
+      await requestAppInstall();
+      return;
+    }
+    navigateTo("install-guide");
+  }
   else if (action === "notifications") {
+    if (!pushState.subscribed && !pushState.busy) {
+      const enabled = await enablePushNotifications();
+      if (!enabled) navigateTo("notification-settings");
+      render();
+      return;
+    }
     navigateTo("notification-settings");
     refreshPushState({ syncExisting: true }).then(() => render());
   }
@@ -2354,10 +2499,6 @@ async function handleAction(event) {
   else if (action === "sign-out") {
     await signOutAccount();
     return;
-  }
-  else if (action === "simulate-installed") {
-    state.installState = "installed";
-    showToast("已模拟安装完成");
   }
   else if (action === "enable-system-notifications") {
     await enablePushNotifications();
@@ -2494,6 +2635,37 @@ function escapeHtml(value) {
   })[character]);
 }
 
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    installMessage = "";
+    if (document.querySelector("#app")) render();
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    installBusy = false;
+    installMessage = "";
+    state.installState = "installed";
+    persistAppData();
+    if (state.page === "activation-install" || state.page === "install-guide") {
+      state.page = state.page === "activation-install" ? "activation-notification" : "install-guide";
+    }
+    if (document.querySelector("#app")) render();
+    showToast("已添加到主屏幕");
+  });
+  window.matchMedia?.("(display-mode: standalone)").addEventListener?.("change", () => {
+    syncInstallState();
+    if (document.querySelector("#app")) render();
+  });
+}
+
+if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).catch(() => {
+    // Installation and notifications show a contextual error when the user taps them.
+  });
+}
+
 const figmaBoard = document.querySelector("#figma-board");
 const hasStoredAuthSession = restoreAuthSession();
 if (hasStoredAuthSession) {
@@ -2512,6 +2684,7 @@ if (hasStoredAuthSession) {
     state.pageHistory = [];
   }
 }
+syncInstallState();
 if (figmaBoard) renderFigmaBoard();
 else {
   render();

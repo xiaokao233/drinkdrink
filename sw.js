@@ -1,9 +1,57 @@
+self.__GENYIKOU_CACHE_VERSION__ = "v1";
+const CACHE_NAME = `genyikou-shell-${self.__GENYIKOU_CACHE_VERSION__}`;
+const APP_SHELL = [
+  "/",
+  "/index.html",
+  "/client.js",
+  "/styles.css",
+  "/manifest.webmanifest",
+  "/assets/fonts/MaokenAssortedSans.ttf",
+  "/assets/app-icons/app-icon-192.png",
+  "/assets/app-icons/app-icon-512.png"
+];
+
 self.addEventListener("install", event => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.allSettled(APP_SHELL.map(url => cache.add(url)));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", event => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    const names = await caches.keys();
+    await Promise.all(names.filter(name => name.startsWith("genyikou-shell-") && name !== CACHE_NAME).map(name => caches.delete(name)));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener("fetch", event => {
+  const request = event.request;
+  const url = new URL(request.url);
+  if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+
+  event.respondWith((async () => {
+    try {
+      const response = await fetch(request);
+      if (response.ok) {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(request, response.clone());
+      }
+      return response;
+    } catch {
+      const cached = await caches.match(request, { ignoreSearch: request.mode === "navigate" });
+      if (cached) return cached;
+      if (request.mode === "navigate") {
+        return (await caches.match("/")) || new Response("暂时离线，请联网后重试。", {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        });
+      }
+      return Response.error();
+    }
+  })());
 });
 
 self.addEventListener("push", event => {
