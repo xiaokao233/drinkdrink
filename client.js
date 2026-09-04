@@ -155,6 +155,14 @@ let authToken = "";
 let authAccount = null;
 let authNeedsOnboarding = false;
 let cloudDataAvailable = false;
+let pushState = {
+  supported: supportsPushNotifications(),
+  permission: notificationPermission(),
+  configured: false,
+  subscribed: false,
+  busy: false,
+  error: ""
+};
 let authCooldownTimer;
 let serverSyncTimer;
 let lastResponseSignature = "";
@@ -408,6 +416,155 @@ async function authRequest(path, options = {}) {
   return result;
 }
 
+function supportsPushNotifications() {
+  return typeof navigator !== "undefined"
+    && "serviceWorker" in navigator
+    && typeof PushManager !== "undefined"
+    && typeof Notification !== "undefined";
+}
+
+function notificationPermission() {
+  return typeof Notification === "undefined" ? "unsupported" : Notification.permission;
+}
+
+function pushSettingsPayload() {
+  return {
+    drink: state.notifications.drink !== false,
+    response: state.notifications.response !== false,
+    relation: state.notifications.relation !== false
+  };
+}
+
+function urlBase64ToUint8Array(value) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(base64);
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+async function pushRegistration() {
+  if (!supportsPushNotifications()) throw new Error("当前浏览器暂不支持系统通知");
+  return navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
+}
+
+async function savePushSubscription(subscription) {
+  return authRequest("/api/push-subscription", {
+    method: "POST",
+    body: JSON.stringify({ subscription: subscription.toJSON(), settings: pushSettingsPayload() })
+  });
+}
+
+async function refreshPushState({ syncExisting = false } = {}) {
+  pushState.supported = supportsPushNotifications();
+  pushState.permission = notificationPermission();
+  pushState.error = "";
+  if (!pushState.supported || !authToken || !cloudDataAvailable) {
+    pushState.subscribed = false;
+    return false;
+  }
+  try {
+    const [registration, status] = await Promise.all([
+      pushRegistration(),
+      authRequest("/api/push-subscription")
+    ]);
+    pushState.configured = status.configured === true && Boolean(status.publicKey);
+    const subscription = await registration.pushManager.getSubscription();
+    pushState.subscribed = Boolean(subscription);
+    if (syncExisting && subscription && pushState.configured) await savePushSubscription(subscription);
+    return pushState.subscribed;
+  } catch (error) {
+    pushState.error = error.message || "通知状态暂时无法读取";
+    return false;
+  }
+}
+
+async function enablePushNotifications() {
+  if (pushState.busy) return false;
+  pushState.supported = supportsPushNotifications();
+  if (!pushState.supported) {
+    pushState.error = "当前浏览器暂不支持；iPhone 请先添加到主屏幕";
+    render();
+    return false;
+  }
+  if (!authToken || !cloudDataAvailable) {
+    pushState.error = "登录后才能开启系统通知";
+    render();
+    return false;
+  }
+  pushState.busy = true;
+  pushState.error = "";
+  render();
+  try {
+    const permission = await Notification.requestPermission();
+    pushState.permission = permission;
+    if (permission !== "granted") throw new Error(permission === "denied" ? "通知已被浏览器阻止，请到系统设置中允许" : "还没有允许通知");
+    const status = await authRequest("/api/push-subscription");
+    pushState.configured = status.configured === true && Boolean(status.publicKey);
+    if (!pushState.configured) throw new Error("推送服务还没有配置好");
+    const registration = await pushRegistration();
+    let subscription = await registration.pushManager.getSubscription();
+    subscription ||= await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(status.publicKey)
+    });
+    state.notifications = { drink: true, response: true, relation: true };
+    await savePushSubscription(subscription);
+    pushState.subscribed = true;
+    persistAppData();
+    showToast("系统通知已开启");
+    return true;
+  } catch (error) {
+    pushState.error = error.message || "系统通知没有开启";
+    showToast(pushState.error);
+    return false;
+  } finally {
+    pushState.busy = false;
+    render();
+  }
+}
+
+async function syncPushPreferences() {
+  if (!pushState.subscribed || !authToken || !cloudDataAvailable) return false;
+  const registration = await pushRegistration();
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    pushState.subscribed = false;
+    return false;
+  }
+  await savePushSubscription(subscription);
+  return true;
+}
+
+async function disablePushNotifications({ removeFromServer = true } = {}) {
+  if (!pushState.supported) return;
+  try {
+    const registration = await pushRegistration();
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription && removeFromServer && authToken && cloudDataAvailable) {
+      await authRequest("/api/push-subscription", {
+        method: "DELETE",
+        body: JSON.stringify({ endpoint: subscription.endpoint })
+      });
+    }
+    await subscription?.unsubscribe();
+  } catch {
+    // Local sign-out and account deletion should still finish if push cleanup fails.
+  }
+  pushState.subscribed = false;
+}
+
+function pushStatusDetails() {
+  if (!pushState.supported) return { title: "当前不可用", note: "iPhone 请先添加到主屏幕" };
+  if (pushState.permission === "denied") return { title: "已被阻止", note: "请到浏览器或系统设置中允许" };
+  if (pushState.busy) return { title: "正在开启", note: "请留意系统弹窗" };
+  if (pushState.subscribed) {
+    return Object.values(state.notifications).some(Boolean)
+      ? { title: "已允许", note: "这台设备会收到通知" }
+      : { title: "已暂停", note: "可以单独打开一种提醒" };
+  }
+  return { title: "尚未开启", note: pushState.error || "点击下方按钮开启" };
+}
+
 function profilePayload() {
   return {
     name: people.me.name,
@@ -548,6 +705,7 @@ async function verifyLoginCode() {
       saveAuthSession(result.token, result.user, false);
       enterHome();
       startServerSync();
+      await refreshPushState({ syncExisting: true });
       await openInviteFromUrl();
       showToast(`欢迎回来，${people.me.name}`);
     } else {
@@ -592,6 +750,7 @@ async function validateAuthSession() {
       authNeedsOnboarding = false;
       saveAuthSession(authToken, authAccount, false);
       startServerSync();
+      await refreshPushState({ syncExisting: true });
       await openInviteFromUrl();
       render();
     } else if (authNeedsOnboarding) {
@@ -613,6 +772,7 @@ async function validateAuthSession() {
 
 async function signOutAccount() {
   persistAppData();
+  await disablePushNotifications();
   try {
     if (authToken) await authRequest("/api/auth/logout", { method: "POST", body: "{}" });
   } catch {
@@ -1099,6 +1259,7 @@ function relationCardTemplate(relation, index) {
 }
 
 function profileTemplate() {
+  const notificationStatus = pushStatusDetails();
   return `<section class="subpage profile-page">
     <div class="subpage-heading">
       <h1>我的杯子</h1>
@@ -1111,7 +1272,7 @@ function profileTemplate() {
     <div class="settings-list">
       ${authAccount ? `<button class="account-row has-leading-icon" data-action="sign-out">${sketchIcon("email")}<span>邮箱</span><i>${maskedEmail()} · 退出</i></button>` : ""}
       <button class="has-leading-icon" data-action="install">${sketchIcon("install")}<span>放到桌面</span><i>${state.installState === "installed" ? "已安装" : "推荐"}</i></button>
-      <button class="has-leading-icon" data-action="notifications">${sketchIcon("bell")}<span>通知</span><i>${Object.values(state.notifications).some(Boolean) ? "已开启" : "未开启"}</i></button>
+      <button class="has-leading-icon" data-action="notifications">${sketchIcon("bell")}<span>通知</span><i>${notificationStatus.title}</i></button>
       <button class="has-leading-icon" data-action="data-note">${sketchIcon("data")}<span>数据使用</span><i>›</i></button>
     </div>
     <button class="sign-out with-icon" data-action="delete-account">${sketchIcon("delete")}注销账户</button>
@@ -1218,6 +1379,7 @@ function activationInstallTemplate() {
 }
 
 function activationNotificationTemplate() {
+  const status = pushStatusDetails();
   return `<section class="flow-page">
     ${flowLead("有动静，告诉你", "开启通知，接收朋友的喝水与回应。")}
     <div class="activation-notices">
@@ -1225,7 +1387,8 @@ function activationNotificationTemplate() {
       <div><strong>有人跟了你</strong><span>收到回应</span></div>
       <div><strong>关系有变化</strong><span>成员确认</span></div>
     </div>
-    <button class="flow-primary" data-action="activation-allow">开启通知</button>
+    ${pushState.error ? `<p class="push-error" role="alert">${escapeHtml(pushState.error)}</p>` : ""}
+    <button class="flow-primary" data-action="activation-allow" ${pushState.busy ? "disabled" : ""}>${pushState.busy ? "正在开启…" : status.title === "已允许" ? "通知已开启" : "开启通知"}</button>
     <button class="text-action" data-action="activation-later">稍后</button>
   </section>`;
 }
@@ -1383,13 +1546,19 @@ function installGuideTemplate() {
 }
 
 function notificationSettingsTemplate() {
+  const status = pushStatusDetails();
+  const togglesDisabled = !pushState.subscribed || pushState.busy;
   return `<section class="flow-page flow-page--detail">
     ${flowLead("通知")}
-    <div class="permission-card"><span><small>系统权限</small><strong>已允许</strong></span></div>
+    <div class="permission-card"><span><small>系统权限</small><strong>${escapeHtml(status.title)}</strong></span><i>${escapeHtml(status.note)}</i></div>
+    ${pushState.subscribed
+      ? `<button class="text-action notification-device-action" data-action="disable-system-notifications">关闭这台设备的通知</button>`
+      : `<button class="flow-primary notification-enable" data-action="enable-system-notifications" ${pushState.busy ? "disabled" : ""}>${pushState.busy ? "正在开启…" : "开启系统通知"}</button>`}
+    ${pushState.error && !status.note.includes(pushState.error) ? `<p class="push-error" role="alert">${escapeHtml(pushState.error)}</p>` : ""}
     <section class="detail-section">
-      ${toggleRow("toggle-notification-drink", "喝水信号", "有人喝了", state.notifications.drink)}
-      ${toggleRow("toggle-notification-response", "跟随回应", "有人回应", state.notifications.response)}
-      ${toggleRow("toggle-notification-relation", "关系变化", "邀请与退出", state.notifications.relation)}
+      ${toggleRow("toggle-notification-drink", "喝水信号", "有人喝了", state.notifications.drink, togglesDisabled)}
+      ${toggleRow("toggle-notification-response", "跟随回应", "有人回应", state.notifications.response, togglesDisabled)}
+      ${toggleRow("toggle-notification-relation", "关系变化", "邀请与加入", state.notifications.relation, togglesDisabled)}
     </section>
   </section>`;
 }
@@ -1440,8 +1609,8 @@ function memberRow(id, clickable) {
   return `<button class="member-row" ${clickable ? `data-action="open-member" data-member-id="${escapeHtml(id)}"` : "disabled"}>${cupMarkup(id)}<span><strong>${escapeHtml(people[id].name)}</strong><small>${note}</small></span>${clickable ? "<i>›</i>" : "<i>我</i>"}</button>`;
 }
 
-function toggleRow(action, title, note, checked) {
-  return `<button class="toggle-row" data-action="${action}" aria-pressed="${checked}"><span><strong>${title}</strong><small>${note}</small></span><i class="switch ${checked ? "is-on" : ""}"><b></b></i></button>`;
+function toggleRow(action, title, note, checked, disabled = false) {
+  return `<button class="toggle-row" data-action="${action}" aria-pressed="${checked}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}><span><strong>${title}</strong><small>${note}</small></span><i class="switch ${checked ? "is-on" : ""}"><b></b></i></button>`;
 }
 
 function bottomNavTemplate() {
@@ -1805,16 +1974,16 @@ async function handleAction(event) {
     state.installState = "browser";
     navigateTo("activation-notification");
   }
-  else if (action === "activation-allow" || action === "activation-later") {
-    if (action === "activation-allow") {
-      state.notifications.drink = true;
-      state.notifications.response = true;
-      state.notifications.relation = true;
-    } else {
-      state.notifications.drink = false;
-      state.notifications.response = false;
-      state.notifications.relation = false;
-    }
+  else if (action === "activation-allow") {
+    const enabled = await enablePushNotifications();
+    if (!enabled) return;
+    startServerSync();
+    navigateTo(state.entryIntent === "join" ? "join-relation" : "create-relation");
+  }
+  else if (action === "activation-later") {
+    state.notifications.drink = false;
+    state.notifications.response = false;
+    state.notifications.relation = false;
     startServerSync();
     navigateTo(state.entryIntent === "join" ? "join-relation" : "create-relation");
   }
@@ -2030,7 +2199,10 @@ async function handleAction(event) {
     showToast("已退出这段关系");
   }
   else if (action === "install") navigateTo("install-guide");
-  else if (action === "notifications") navigateTo("notification-settings");
+  else if (action === "notifications") {
+    navigateTo("notification-settings");
+    refreshPushState({ syncExisting: true }).then(() => render());
+  }
   else if (action === "data-note") navigateTo("data-info");
   else if (action === "sign-out") {
     await signOutAccount();
@@ -2040,9 +2212,29 @@ async function handleAction(event) {
     state.installState = "installed";
     showToast("已模拟安装完成");
   }
-  else if (action === "toggle-notification-drink") state.notifications.drink = !state.notifications.drink;
-  else if (action === "toggle-notification-response") state.notifications.response = !state.notifications.response;
-  else if (action === "toggle-notification-relation") state.notifications.relation = !state.notifications.relation;
+  else if (action === "enable-system-notifications") {
+    await enablePushNotifications();
+    return;
+  }
+  else if (action === "disable-system-notifications") {
+    pushState.busy = true;
+    render();
+    await disablePushNotifications();
+    pushState.busy = false;
+    showToast("这台设备的通知已关闭");
+    render();
+    return;
+  }
+  else if (["toggle-notification-drink", "toggle-notification-response", "toggle-notification-relation"].includes(action)) {
+    const key = action.replace("toggle-notification-", "");
+    state.notifications[key] = !state.notifications[key];
+    persistAppData();
+    render();
+    try { await syncPushPreferences(); }
+    catch (error) { showToast(error.message || "通知偏好暂时没有保存"); }
+    render();
+    return;
+  }
   else if (action === "delete-account") navigateTo("delete-intro");
   else if (action === "continue-delete") navigateTo("delete-confirm");
   else if (action === "continue-delete-final") navigateTo("delete-final");
@@ -2054,6 +2246,7 @@ async function handleAction(event) {
         render();
         return;
       }
+      await disablePushNotifications({ removeFromServer: false });
       clearAuthSession();
       clearInterval(serverSyncTimer);
       serverSyncTimer = undefined;

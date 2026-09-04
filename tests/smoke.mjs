@@ -1,8 +1,9 @@
 const baseUrl = "http://127.0.0.1:4173";
 
-const [pageResponse, scriptResponse, stylesResponse, fontResponse, cupAssetResponse, navAssetResponse] = await Promise.all([
+const [pageResponse, scriptResponse, workerResponse, stylesResponse, fontResponse, cupAssetResponse, navAssetResponse] = await Promise.all([
   fetch(`${baseUrl}/`),
   fetch(`${baseUrl}/client.js`),
+  fetch(`${baseUrl}/sw.js`),
   fetch(`${baseUrl}/styles.css`),
   fetch(`${baseUrl}/assets/fonts/MaokenAssortedSans.ttf`),
   fetch(`${baseUrl}/assets/cups/cup-01-body.png`),
@@ -15,6 +16,7 @@ function assert(condition, message) {
 
 assert(pageResponse.ok, `首页加载失败：${pageResponse.status}`);
 assert(scriptResponse.ok, `交互脚本加载失败：${scriptResponse.status}`);
+assert(workerResponse.ok, `通知服务脚本加载失败：${workerResponse.status}`);
 assert(stylesResponse.ok, `样式加载失败：${stylesResponse.status}`);
 assert(fontResponse.ok, `猫啃什锦黑加载失败：${fontResponse.status}`);
 assert(fontResponse.headers.get("content-type")?.includes("font/ttf"), "字体 MIME 类型不正确");
@@ -48,6 +50,7 @@ assert(script.includes("cup-object--real") && script.includes("cup-layer"), "真
 assert(script.includes("data-region-select") && script.includes("随机配色"), "杯子分区配色流程缺失");
 assert(script.includes('"login"') && script.includes("send-login-code") && script.includes("verify-login-code"), "邮箱验证码登录入口缺失");
 assert(script.includes("restoreAuthSession") && script.includes("validateAuthSession"), "登录状态恢复与校验缺失");
+assert(script.includes("pushManager.subscribe") && script.includes("/api/push-subscription"), "系统推送订阅流程缺失");
 assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
 assert(styles.includes("#55d8ff") && styles.includes("#4fe1ce"), "清透色卡没有接入页面");
 assert(!script.includes("stats-grid") && !script.includes("history-card"), "Demo 中不应出现饮水统计或历史压力");

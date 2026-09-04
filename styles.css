@@ -868,6 +868,7 @@ button { color: inherit; }
 .inline-add { display: block; margin: 13px auto 0; padding: 8px 13px; border: 2px solid var(--ink); border-radius: 48% 52% 44% 56% / 55% 45% 55% 45%; background: transparent; font-size: 11px; cursor: pointer; }
 
 .toggle-row { width: 100%; min-height: 68px; padding: 9px 2px; border: 0; border-bottom: 2px dashed var(--soft-line); background: transparent; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; cursor: pointer; }
+.toggle-row:disabled { opacity: .46; cursor: not-allowed; }
 .toggle-row span { flex: 1; }
 .toggle-row strong { display: block; font-size: 13px; font-weight: 400; }
 .toggle-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; line-height: 1.45; }
@@ -891,6 +892,10 @@ button { color: inherit; }
 .permission-card small { color: var(--muted); font-size: 9px; }
 .permission-card strong { margin-top: 3px; font-size: 16px; font-weight: 400; }
 .permission-card i { font-size: 9px; font-style: normal; }
+.permission-card i { max-width: 155px; color: var(--muted); line-height: 1.45; text-align: right; }
+.notification-enable { margin-top: 16px; }
+.notification-device-action { margin-top: 10px; }
+.push-error { margin: 13px 4px 0; color: #a93f35; font-size: 11px; line-height: 1.6; text-align: center; }
 
 .step-list { margin: 0; padding: 0; list-style: none; }
 .step-list li { min-height: 64px; display: flex; align-items: center; gap: 13px; border-bottom: 2px dashed var(--soft-line); font-size: 13px; }

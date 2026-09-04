@@ -1,5 +1,6 @@
 import { database, ensureSchema, ensureUser, newId, newInviteCode } from "./_db.mjs";
 import { json, methodNotAllowed, requestJson, sessionFromRequest } from "./_auth.mjs";
+import { sendPushToUsers } from "./_push.mjs";
 
 const cupIds = new Set(["cup-01", "cup-02", "cup-03", "cup-04", "cup-05", "cup-06"]);
 const hexColor = /^#[0-9a-f]{6}$/i;
@@ -181,9 +182,23 @@ async function acceptInvite(user, body) {
   if (!rows.length) return json({ ok: false, message: "这个邀请码不可用" }, 404);
   const members = await relationMembers(rows[0].id);
   const ownerName = members[0]?.name || "朋友";
-  await sql`INSERT INTO relation_members (relation_id, user_id, note)
+  const joined = await sql`INSERT INTO relation_members (relation_id, user_id, note)
     VALUES (${rows[0].id}, ${user.id}, ${`和${ownerName}`})
-    ON CONFLICT (relation_id, user_id) DO NOTHING`;
+    ON CONFLICT (relation_id, user_id) DO NOTHING
+    RETURNING relation_id`;
+  if (joined.length) {
+    const joinedProfile = await profileFor(user.id);
+    await sendPushToUsers(
+      members.map(member => member.id),
+      "relation",
+      {
+        title: "新朋友到位",
+        body: `${joinedProfile?.name || "朋友"}加入了你们。`,
+        tag: `relation-${rows[0].id}`,
+        url: "/?from=relation-notification"
+      }
+    );
+  }
   const state = await readState(user);
   return json({ ...state, relationId: rows[0].id });
 }
@@ -250,6 +265,13 @@ async function sendDrink(user, body) {
   for (const recipientId of recipientIds) {
     await sql`INSERT INTO drink_targets (event_id, recipient_user_id) VALUES (${eventId}, ${recipientId})`;
   }
+  const senderProfile = await profileFor(user.id);
+  await sendPushToUsers(recipientIds, "drink", {
+    title: "要不要跟一口？",
+    body: `${senderProfile?.name || "朋友"}刚喝了一口。`,
+    tag: `drink-${eventId}`,
+    url: `/?from=drink-notification&event=${eventId}`
+  });
   return json({ ok: true, shared: true, recipientCount: recipientIds.length });
 }
 
@@ -259,14 +281,24 @@ async function respondDrink(user, body) {
     ? [...new Set(body.senderIds.map(value => cleanText(value, 40)).filter(Boolean))]
     : [];
   if (!senderIds.length) return json({ ok: false, message: "没有选择要回应的人" }, 400);
+  const respondedSenderIds = [];
   for (const senderId of senderIds) {
-    await sql`UPDATE drink_targets target SET responded_at = NOW()
+    const updated = await sql`UPDATE drink_targets target SET responded_at = NOW()
       FROM drink_events event
       WHERE target.event_id = event.id
         AND target.recipient_user_id = ${user.id}
         AND event.sender_user_id = ${senderId}
-        AND target.responded_at IS NULL`;
+        AND target.responded_at IS NULL
+      RETURNING target.event_id`;
+    if (updated.length) respondedSenderIds.push(senderId);
   }
+  const responderProfile = await profileFor(user.id);
+  await sendPushToUsers(respondedSenderIds, "response", {
+    title: "碰到了",
+    body: `${responderProfile?.name || "朋友"}跟了你一口。`,
+    tag: `response-${user.id}`,
+    url: "/?from=response-notification"
+  });
   return json(await readState(user));
 }
 

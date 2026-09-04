@@ -7,6 +7,7 @@ const output = join(root, "dist");
 const staticFiles = [
   "index.html",
   "client.js",
+  "sw.js",
   "styles.css",
   "manifest.webmanifest",
   "figma-board.html",

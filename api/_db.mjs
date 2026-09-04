@@ -63,9 +63,22 @@ export async function ensureSchema() {
       window_started_at TIMESTAMPTZ NOT NULL,
       send_count INTEGER NOT NULL DEFAULT 1
     )`;
+    await sql`CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id UUID PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint TEXT UNIQUE NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      expiration_time BIGINT,
+      settings JSONB NOT NULL DEFAULT '{"drink":true,"response":true,"relation":true}'::jsonb,
+      user_agent VARCHAR(320) NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`;
     await sql`CREATE INDEX IF NOT EXISTS relation_members_user_idx ON relation_members(user_id)`;
     await sql`CREATE INDEX IF NOT EXISTS drink_targets_recipient_idx ON drink_targets(recipient_user_id, responded_at)`;
     await sql`CREATE INDEX IF NOT EXISTS drink_events_sender_idx ON drink_events(sender_user_id, created_at DESC)`;
+    await sql`CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(user_id)`;
     return true;
   })().catch(error => {
     schemaPromise = undefined;
