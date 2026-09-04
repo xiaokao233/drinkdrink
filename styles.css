@@ -21,7 +21,8 @@
   --mint: #4fe1ce;
   --pink: #ff78ad;
   --lime: #8eeb68;
-  --safe-bottom: max(12px, env(safe-area-inset-bottom));
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: max(12px, env(safe-area-inset-bottom, 0px));
   --font-hand: "Maoken Assorted Sans", "KaiTi", "STKaiti", sans-serif;
   font-family: var(--font-hand);
   color: var(--ink-dark);
@@ -481,13 +482,50 @@ button { color: inherit; }
 @keyframes fade-in { from { opacity: 0; } }
 
 @media (max-width: 860px) {
-  body { background: var(--paper); }
-  .demo-stage { display: block; min-height: 100dvh; padding: 0; }
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: var(--paper);
+  }
+  .demo-stage {
+    display: block;
+    width: 100%;
+    height: 100vh;
+    min-height: 0;
+    padding: 0;
+  }
   .demo-note { display: none; }
-  .phone-shell { width: 100%; height: 100dvh; min-height: 610px; border: 0; border-radius: 0; box-shadow: none; }
+  .phone-shell {
+    width: 100%;
+    height: 100vh;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .app-root,
+  .screen { min-height: 0; }
   .phone-speaker { display: none; }
-  .app-header { padding-top: max(18px, env(safe-area-inset-top)); height: max(59px, calc(env(safe-area-inset-top) + 43px)); }
-  .screen-content { top: max(59px, calc(env(safe-area-inset-top) + 43px)); }
+  .app-header { padding-top: max(18px, var(--safe-top)); height: max(59px, calc(var(--safe-top) + 43px)); }
+  .screen-content {
+    top: max(59px, calc(var(--safe-top) + 43px));
+    bottom: calc(82px + var(--safe-bottom));
+  }
+  .screen--nested .screen-content {
+    bottom: 0;
+    padding-bottom: var(--safe-bottom);
+  }
+}
+
+@supports (height: 100dvh) {
+  @media (max-width: 860px) {
+    .demo-stage,
+    .phone-shell { height: 100dvh; }
+  }
 }
 
 @media (max-height: 750px) and (min-width: 861px) {

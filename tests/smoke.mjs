@@ -39,6 +39,7 @@ const [html, script, worker, styles, manifestText] = await Promise.all([
 
 assert(html.includes('id="app"'), "页面缺少应用入口");
 assert(html.includes('rel="apple-touch-icon"') && html.includes('favicon-32.png'), "网页缺少 App 图标声明");
+assert(html.includes('apple-mobile-web-app-status-bar-style') && html.includes('black-translucent'), "iPhone 沉浸式状态栏配置缺失");
 const manifest = JSON.parse(manifestText);
 assert(manifest.icons?.some(icon => icon.sizes === "192x192") && manifest.icons?.some(icon => icon.sizes === "512x512" && icon.purpose === "maskable"), "应用清单缺少标准与可裁切图标");
 assert(script.includes("data-hold-follow"), "长按“跟一口”入口缺失");
@@ -67,6 +68,7 @@ assert(script.includes('data-action="return-home"') && script.includes("acknowle
 assert(worker.includes("postMessage") && worker.includes("genyikou-push"), "Service Worker 没有把推送即时通知给已打开的页面");
 assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
 assert(styles.includes("#55d8ff") && styles.includes("#4fe1ce"), "清透色卡没有接入页面");
+assert(styles.includes("--safe-top") && styles.includes("safe-area-inset-top") && styles.includes("height: 100dvh") && !styles.includes("min-height: 610px"), "移动端全屏高度与安全区适配缺失");
 assert(!script.includes("stats-grid") && !script.includes("history-card"), "Demo 中不应出现饮水统计或历史压力");
 
 const functionIcons = ["back", "next", "create", "join", "edit", "bell", "install", "copy", "close", "leave", "delete", "check", "email", "data"];
