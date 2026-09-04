@@ -14,7 +14,7 @@ const context = vm.createContext({
     querySelectorAll() { return []; }
   }
 });
-vm.runInContext(fs.readFileSync(new URL("../app.js", import.meta.url), "utf8"), context);
+vm.runInContext(fs.readFileSync(new URL("../client.js", import.meta.url), "utf8"), context);
 vm.runInContext(`
   function act(action, data = {}) {
     handleAction({ currentTarget: { dataset: { action, ...data } } });

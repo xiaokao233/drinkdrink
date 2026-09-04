@@ -133,6 +133,7 @@ let state = {
   authBusy: "",
   authError: "",
   authDevCode: "",
+  authChallenge: "",
   authCooldownUntil: 0,
   draftRelationNote: "",
   draftInviteCode: "",
@@ -408,6 +409,7 @@ async function sendLoginCode() {
     });
     state.authCodeSent = true;
     state.authDevCode = result.devCode || "";
+    state.authChallenge = result.challenge || "";
     state.authCooldownUntil = Date.now() + Number(result.cooldownSeconds || 60) * 1000;
     clearTimeout(authCooldownTimer);
     authCooldownTimer = setTimeout(() => {
@@ -431,7 +433,7 @@ async function verifyLoginCode() {
   try {
     const result = await authRequest("/api/auth/verify-email-code", {
       method: "POST",
-      body: JSON.stringify({ email, code })
+      body: JSON.stringify({ email, code, challenge: state.authChallenge })
     });
     saveAuthSession(result.token, result.user, result.isNewUser);
     const restored = !result.isNewUser && restorePersistentData();
@@ -448,6 +450,7 @@ async function verifyLoginCode() {
     }
     state.authCode = "";
     state.authDevCode = "";
+    state.authChallenge = "";
   } catch (error) {
     state.authError = error.message || "登录没有完成";
   } finally {

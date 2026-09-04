@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check app.js && node --check server.mjs && node --check tests/smoke.mjs",
-    "test": "node tests/smoke.mjs && node tests/render-pages.mjs && node tests/invitation-flow.mjs && node tests/drink-rounds.mjs && node tests/cup-editor.mjs && node tests/member-settings.mjs && node tests/persistence.mjs && node tests/email-auth.mjs"
+    "build": "node tools/build-vercel.mjs",
+    "check": "node --check client.js && node --check server.mjs && node --check api/_auth.mjs && node --check tests/smoke.mjs",
+    "test": "node tests/smoke.mjs && node tests/render-pages.mjs && node tests/invitation-flow.mjs && node tests/drink-rounds.mjs && node tests/cup-editor.mjs && node tests/member-settings.mjs && node tests/persistence.mjs && node tests/email-auth.mjs && node tests/vercel-api.mjs"
   }
 }

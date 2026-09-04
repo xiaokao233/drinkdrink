@@ -26,7 +26,7 @@ const pages = [
   "delete-confirm", "delete-final", "delete-complete"
 ];
 
-const source = fs.readFileSync(new URL("../app.js", import.meta.url), "utf8");
+const source = fs.readFileSync(new URL("../client.js", import.meta.url), "utf8");
 const assertions = `
   for (const page of ${JSON.stringify(pages)}) {
     state.page = page;
@@ -104,7 +104,7 @@ const assertions = `
   }
 `;
 
-vm.runInContext(source + assertions, context, { filename: "app.js" });
+vm.runInContext(source + assertions, context, { filename: "client.js" });
 console.log(`PASS ${pages.length} 个页面运行时渲染检查`);
 
 let prefersReducedMotion = false;

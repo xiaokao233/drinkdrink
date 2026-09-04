@@ -38,7 +38,7 @@ function advance(ms) {
     }
   }
 }
-vm.runInContext(fs.readFileSync(new URL("../app.js", import.meta.url), "utf8"), context);
+vm.runInContext(fs.readFileSync(new URL("../client.js", import.meta.url), "utf8"), context);
 run(`
   function drink() { handleAction({ currentTarget: { dataset: { action: "drink" } } }); }
   state.relations = [];

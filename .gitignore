@@ -1,6 +1,8 @@
 # Local dependencies and runtime data
 node_modules/
 .data/
+dist/
+.vercel/
 
 # Environment variables and local secrets
 .env
@@ -17,4 +19,3 @@ screenshots/
 Thumbs.db
 .vscode/
 .idea/
-

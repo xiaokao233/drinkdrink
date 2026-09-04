@@ -20,6 +20,20 @@ npm start
 
 第一次打开会进入邮箱登录。输入邮箱后点击“发送验证码”，本地开发版会把六位测试验证码直接显示在输入框下方；配置 `RESEND_API_KEY` 和 `AUTH_FROM_EMAIL` 后，验证码会改为通过邮件送达。完成身份设置后，刷新页面会保持登录与已保存资料。
 
+## 部署到 Vercel
+
+项目在 Vercel 上使用两部分：`dist/` 是静态页面，`api/` 是邮箱登录云函数。浏览器脚本为 `client.js`，不会再被当作 Node.js 服务端入口执行；本地的 `server.mjs` 只用于电脑上预览。
+
+把 GitHub 仓库连接到 Vercel 后无需填写自定义构建设置，仓库中的 `vercel.json` 会执行 `npm run build` 并发布 `dist/`。在 Vercel 项目的 Environment Variables 中添加：
+
+- `AUTH_TOKEN_SECRET`：一段足够长、不可公开的随机字符串
+- `RESEND_API_KEY`：Resend API Key
+- `AUTH_FROM_EMAIL`：已在 Resend 验证的发件地址
+
+变量名示例保存在 `.env.example`，不要把真实值提交到 GitHub。若暂时只想进行封闭测试，可以在 Vercel 设置 `AUTH_ALLOW_DEV_CODE=true`，页面会直接显示测试验证码；公开测试前应关闭它并配置真实邮件。
+
+线上验证码和登录状态使用签名令牌，不再写入 `.data/auth-store.json`，因此适合 Vercel 的无状态 Function。杯子、关系和设置目前仍保存在当前浏览器；跨设备同步需要后续接入云数据库。
+
 ## 当前可以体验
 
 - 点击“我喝了”：明显背景出现后转为轻微持续动画

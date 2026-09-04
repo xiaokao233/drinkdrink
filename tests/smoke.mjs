@@ -2,7 +2,7 @@ const baseUrl = "http://127.0.0.1:4173";
 
 const [pageResponse, scriptResponse, stylesResponse, fontResponse, cupAssetResponse, navAssetResponse] = await Promise.all([
   fetch(`${baseUrl}/`),
-  fetch(`${baseUrl}/app.js`),
+  fetch(`${baseUrl}/client.js`),
   fetch(`${baseUrl}/styles.css`),
   fetch(`${baseUrl}/assets/fonts/MaokenAssortedSans.ttf`),
   fetch(`${baseUrl}/assets/cups/cup-01-body.png`),
