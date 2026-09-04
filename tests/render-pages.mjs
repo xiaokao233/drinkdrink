@@ -201,6 +201,9 @@ await vm.runInContext(`
     incomingIds = ["ming"];
     state.incomingEvents = { ming: "old-drink" };
     ignoreCurrentIncomingSignals();
+    ignoredIncomingEventIds.clear();
+    restoreIgnoredIncomingSignals();
+    if (!ignoredIncomingEventIds.has("old-drink")) throw new Error("略过的旧提醒应在手机重新打开后继续保持已读");
     state.homeMode = "sent";
     syncServerState = async () => true;
     await handleForegroundPush({ type: "genyikou-push", category: "drink", url: "/?event=old-drink" });

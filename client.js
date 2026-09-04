@@ -152,6 +152,7 @@ const persistenceKey = "genyikou-demo-data-v1";
 const persistenceVersion = 1;
 const authSessionKey = "genyikou-auth-session-v2";
 const responseAcknowledgementKey = "genyikou-response-ack-v1";
+const incomingAcknowledgementKey = "genyikou-incoming-ack-v1";
 let authToken = "";
 let authAccount = null;
 let authNeedsOnboarding = false;
@@ -349,6 +350,7 @@ function restoreAuthSession() {
       createdAt: String(saved.user.createdAt || "")
     };
     authNeedsOnboarding = saved.needsOnboarding === true;
+    restoreIgnoredIncomingSignals();
     return true;
   } catch {
     return false;
@@ -361,6 +363,7 @@ function saveAuthSession(token, user, needsOnboarding = authNeedsOnboarding) {
   authNeedsOnboarding = needsOnboarding;
   if (typeof localStorage === "undefined") return;
   localStorage.setItem(authSessionKey, JSON.stringify({ token: authToken, cookieSession: true, user: authAccount, needsOnboarding: authNeedsOnboarding }));
+  restoreIgnoredIncomingSignals();
 }
 
 function clearAuthSession() {
@@ -368,6 +371,7 @@ function clearAuthSession() {
   authAccount = null;
   authNeedsOnboarding = false;
   cloudDataAvailable = false;
+  ignoredIncomingEventIds.clear();
   if (typeof localStorage !== "undefined") localStorage.removeItem(authSessionKey);
 }
 
@@ -604,6 +608,31 @@ function ignoreCurrentIncomingSignals() {
   for (const id of incomingIds) {
     const eventId = state.incomingEvents?.[id];
     if (eventId) ignoredIncomingEventIds.add(String(eventId));
+  }
+  saveIgnoredIncomingSignals();
+}
+
+function incomingAcknowledgementStorageKey() {
+  return `${incomingAcknowledgementKey}:${authAccount?.id || "local"}`;
+}
+
+function restoreIgnoredIncomingSignals() {
+  ignoredIncomingEventIds.clear();
+  if (typeof localStorage === "undefined") return;
+  try {
+    const saved = JSON.parse(localStorage.getItem(incomingAcknowledgementStorageKey()) || "[]");
+    if (Array.isArray(saved)) saved.slice(-100).forEach(id => ignoredIncomingEventIds.add(String(id)));
+  } catch {
+    // A malformed local value should never block the app from opening.
+  }
+}
+
+function saveIgnoredIncomingSignals() {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(incomingAcknowledgementStorageKey(), JSON.stringify([...ignoredIncomingEventIds].slice(-100)));
+  } catch {
+    // Dismissing an old reminder should still work without browser storage.
   }
 }
 
