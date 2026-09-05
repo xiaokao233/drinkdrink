@@ -69,7 +69,7 @@ assert(script.includes("beforeinstallprompt") && script.includes("promptEvent.pr
 assert(!script.includes("simulate-installed") && !script.includes("已模拟安装完成"), "安装入口仍在伪造完成状态");
 assert(script.includes("withTimeout") && script.includes("一键开启通知") && script.includes("等待系统确认"), "通知开启流程缺少一键订阅或超时恢复");
 assert(script.includes("handleForegroundPush") && script.includes('message.category === "drink"'), "前台收到推送后没有立即进入待回应状态");
-assert(script.includes("serverSyncIntervalMs = 5_000") && script.includes('window.addEventListener?.("focus"'), "前台状态同步仍然不够及时");
+assert(script.includes("serverSyncIntervalMs = 5_000") && script.includes("nextMarkup !== currentScreenMarkup") && script.includes('window.addEventListener?.("focus"'), "前台状态同步应及时且不能反复重画未变化的页面");
 assert(script.includes('data-action="return-home"') && script.includes("acknowledgeDisplayedResponse"), "回应页缺少主动回到首页并确认已读的操作");
 assert(script.includes("ignoredIncomingEventIds") && script.includes("unignoredIncomingIds"), "旧喝水提醒仍可能覆盖用户当前页面");
 assert(script.includes("incomingAcknowledgementKey") && script.includes("restoreIgnoredIncomingSignals"), "已略过提醒没有跨重启保存");
@@ -78,7 +78,7 @@ assert(worker.includes("postMessage") && worker.includes("genyikou-push"), "Serv
 assert(worker.includes('addEventListener("fetch"') && worker.includes("CACHE_NAME") && worker.includes("APP_SHELL"), "安卓安装识别与离线外壳缺失");
 assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
 assert(styles.includes("#55d8ff") && styles.includes("#4fe1ce"), "清透色卡没有接入页面");
-assert(styles.includes("--safe-top") && styles.includes("safe-area-inset-top") && styles.includes("height: 100dvh") && !styles.includes("min-height: 610px"), "移动端全屏高度与安全区适配缺失");
+assert(styles.includes("--safe-top") && styles.includes("safe-area-inset-top") && styles.includes("--app-height: 100dvh") && script.includes("syncAppViewportHeight") && script.includes("visualViewport") && !styles.includes("min-height: 610px"), "移动端全屏高度与安全区适配缺失");
 assert(!script.includes("stats-grid") && !script.includes("history-card"), "Demo 中不应出现饮水统计或历史压力");
 
 const functionIcons = ["back", "next", "create", "join", "edit", "bell", "install", "copy", "close", "leave", "delete", "check", "email", "data"];

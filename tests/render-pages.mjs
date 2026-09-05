@@ -336,6 +336,41 @@ await vm.runInContext(`
 `, context);
 console.log("PASS 两类消息按时间排队、逐条处理与结果页保留检查");
 
+await vm.runInContext(`
+  (async () => {
+    authAccount = { id: "user-steady", email: "steady@example.com" };
+    cloudDataAvailable = true;
+    document.hidden = false;
+    state.page = null;
+    state.activeTab = "drink";
+    state.homeMode = "calm";
+    render();
+    const originalRender = render;
+    let backgroundRenderCount = 0;
+    render = markup => {
+      backgroundRenderCount += 1;
+      originalRender(markup);
+    };
+    syncServerState = async () => true;
+    await refreshVisibleServerState();
+    if (backgroundRenderCount !== 0) {
+      throw new Error("定时同步在内容未变化时不应重画页面");
+    }
+    syncServerState = async () => {
+      state.homeMode = "incoming";
+      incomingIds = ["ming"];
+      state.incomingEvents = { ming: "new-signal" };
+      return true;
+    };
+    await refreshVisibleServerState();
+    if (backgroundRenderCount !== 1 || state.homeMode !== "incoming") {
+      throw new Error("定时同步有新消息时仍应立即更新页面");
+    }
+    render = originalRender;
+  })()
+`, context);
+console.log("PASS 静默同步不闪屏、有变化才更新检查");
+
 let prefersReducedMotion = false;
 const motionProbe = { paused: false, cssPaused: false, time: 10 };
 context.matchMedia = () => ({ matches: prefersReducedMotion });

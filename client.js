@@ -176,6 +176,7 @@ let authCooldownTimer;
 let serverSyncTimer;
 let serverSyncPromise;
 const serverSyncIntervalMs = 5_000;
+let currentScreenMarkup = "";
 let currentResponseSignature = "";
 const ignoredIncomingEventIds = new Set();
 const initialInviteCode = typeof location !== "undefined"
@@ -973,7 +974,8 @@ async function refreshVisibleServerState() {
   if (!authAccount || !cloudDataAvailable) return false;
   try {
     await syncServerState({ chooseHomeMode: true });
-    render();
+    const nextMarkup = screenMarkup();
+    if (nextMarkup !== currentScreenMarkup) render(nextMarkup);
     return true;
   } catch {
     // Keep the last known state when the network is temporarily unavailable.
@@ -1299,11 +1301,18 @@ async function updateCurrentRelationRemote() {
   applyServerState(result);
 }
 
-function render() {
+function render(markup = screenMarkup()) {
   const app = document.querySelector("#app");
-  app.innerHTML = screenMarkup();
+  currentScreenMarkup = markup;
+  app.innerHTML = markup;
   bindEvents();
   syncBubbleMotion();
+}
+
+function syncAppViewportHeight() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const height = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+  if (height > 0) document.documentElement?.style?.setProperty("--app-height", `${height}px`);
 }
 
 function screenMarkup() {
@@ -2996,6 +3005,7 @@ if (hasStoredAuthSession) {
   }
 }
 syncInstallState();
+syncAppViewportHeight();
 if (figmaBoard) renderFigmaBoard();
 else {
   render();
@@ -3013,6 +3023,9 @@ if (typeof window !== "undefined") {
   window.addEventListener?.("focus", refreshVisibleServerState);
   window.addEventListener?.("pageshow", refreshVisibleServerState);
   window.addEventListener?.("online", refreshVisibleServerState);
+  window.addEventListener?.("resize", syncAppViewportHeight);
+  window.addEventListener?.("orientationchange", syncAppViewportHeight);
+  window.visualViewport?.addEventListener?.("resize", syncAppViewportHeight);
 }
 if (typeof matchMedia === "function") {
   matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", syncBubbleMotion);

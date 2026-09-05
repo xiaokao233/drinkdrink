@@ -21,8 +21,9 @@
   --mint: #4fe1ce;
   --pink: #ff78ad;
   --lime: #8eeb68;
+  --app-height: 100vh;
   --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
   --font-hand: "Maoken Assorted Sans", "KaiTi", "STKaiti", sans-serif;
   font-family: var(--font-hand);
   color: var(--ink-dark);
@@ -485,30 +486,33 @@ button { color: inherit; }
   html,
   body {
     width: 100%;
-    height: 100%;
+    height: var(--app-height);
     min-height: 0;
     overflow: hidden;
     overscroll-behavior: none;
-    background: var(--paper);
+    background: var(--paper-light);
   }
   .demo-stage {
     display: block;
     width: 100%;
-    height: 100vh;
+    height: var(--app-height);
     min-height: 0;
     padding: 0;
   }
   .demo-note { display: none; }
   .phone-shell {
     width: 100%;
-    height: 100vh;
+    height: var(--app-height);
     min-height: 0;
     border: 0;
     border-radius: 0;
     box-shadow: none;
   }
   .app-root,
-  .screen { min-height: 0; }
+  .screen {
+    height: var(--app-height);
+    min-height: var(--app-height);
+  }
   .phone-speaker { display: none; }
   .app-header { padding-top: max(18px, var(--safe-top)); height: max(59px, calc(var(--safe-top) + 43px)); }
   .screen-content {
@@ -522,10 +526,7 @@ button { color: inherit; }
 }
 
 @supports (height: 100dvh) {
-  @media (max-width: 860px) {
-    .demo-stage,
-    .phone-shell { height: 100dvh; }
-  }
+  :root { --app-height: 100dvh; }
 }
 
 @media (max-height: 750px) and (min-width: 861px) {
@@ -1072,6 +1073,10 @@ button { color: inherit; }
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
+}
+
+@media (max-width: 860px) {
+  .bottom-nav { bottom: max(6px, var(--safe-bottom)); }
 }
 .nav-item { color: var(--ink-dark); }
 .nav-item::before {
