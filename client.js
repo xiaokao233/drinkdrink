@@ -112,9 +112,13 @@ let state = {
   selectedIds: [...incomingIds],
   followedIds: [],
   responseIds: ["ming", "hong"],
+  incomingLatestAt: "",
+  responseLatestAt: "",
   demoPanel: false,
   relations: demoRelations(),
+  proposals: [],
   selectedRelationId: "dorm",
+  selectedProposalId: null,
   nextInvitationNumber: 1,
   lastDrinkShared: true,
   drinkFeedbackActive: false,
@@ -177,6 +181,9 @@ const ignoredIncomingEventIds = new Set();
 const initialInviteCode = typeof location !== "undefined"
   ? (location.pathname.match(/^\/join\/([A-Z0-9]{4,10})\/?$/i)?.[1] || "").toUpperCase()
   : "";
+const initialProposalId = typeof location !== "undefined"
+  ? (new URLSearchParams(location.search).get("proposal") || "")
+  : "";
 const persistenceActions = new Set([
   "save-cup",
   "confirm-identity",
@@ -191,6 +198,12 @@ const persistenceActions = new Set([
   "toggle-relation-receive",
   "toggle-relation-send",
   "save-member-settings",
+  "submit-proposal",
+  "simulate-proposal-ready",
+  "withdraw-proposal",
+  "dismiss-proposal",
+  "approve-proposal",
+  "reject-proposal",
   "confirm-leave-relation",
   "toggle-notification-drink",
   "toggle-notification-response",
@@ -234,6 +247,19 @@ function persistentSnapshot() {
       ...(relation.inviteCode ? { inviteCode: relation.inviteCode } : {}),
       receive: relation.receive,
       send: relation.send
+    })),
+    proposals: state.proposals.map(proposal => ({
+      id: proposal.id,
+      relationId: proposal.relationId,
+      proposerId: proposal.proposerId,
+      proposerName: proposal.proposerName,
+      candidateLabel: proposal.candidateLabel,
+      status: proposal.status,
+      inviteCode: proposal.inviteCode || "",
+      userVote: proposal.userVote,
+      approvalCount: proposal.approvalCount,
+      memberCount: proposal.memberCount,
+      createdAt: proposal.createdAt
     })),
     memberSettings: Object.fromEntries(Object.entries(state.memberSettings).map(([id, settings]) => [id, {
       note: settings.note,
@@ -297,6 +323,29 @@ function restorePersistentData() {
           ...(inviteCode ? { inviteCode } : {}),
           receive: relation.receive !== false,
           send: relation.send !== false
+        }];
+      });
+    }
+
+    if (Array.isArray(saved.proposals)) {
+      state.proposals = saved.proposals.flatMap(proposal => {
+        if (!proposal || typeof proposal !== "object") return [];
+        const id = typeof proposal.id === "string" ? proposal.id.trim().slice(0, 40) : "";
+        const relationId = typeof proposal.relationId === "string" ? proposal.relationId.trim().slice(0, 40) : "";
+        const candidateLabel = typeof proposal.candidateLabel === "string" ? proposal.candidateLabel.trim().slice(0, 12) : "";
+        if (!id || !relationId || !candidateLabel) return [];
+        return [{
+          id,
+          relationId,
+          proposerId: proposal.proposerId === "me" ? "me" : String(proposal.proposerId || ""),
+          proposerName: String(proposal.proposerName || "朋友").slice(0, 12),
+          candidateLabel,
+          status: ["pending", "approved", "rejected"].includes(proposal.status) ? proposal.status : "pending",
+          inviteCode: String(proposal.inviteCode || "").slice(0, 10),
+          userVote: typeof proposal.userVote === "boolean" ? proposal.userVote : null,
+          approvalCount: Number(proposal.approvalCount || 0),
+          memberCount: Number(proposal.memberCount || 0),
+          createdAt: String(proposal.createdAt || "")
         }];
       });
     }
@@ -385,8 +434,12 @@ function resetAccountData() {
   incomingIds = [];
   state.incomingEvents = {};
   state.responseIds = [];
+  state.incomingLatestAt = "";
+  state.responseLatestAt = "";
+  state.proposals = [];
   state.invitePreview = null;
   state.selectedRelationId = null;
+  state.selectedProposalId = null;
   state.memberSettings = defaultMemberSettings();
   state.notifications = { drink: true, response: true, relation: true };
   state.installState = "browser";
@@ -710,10 +763,33 @@ function acknowledgedResponseSignature() {
   }
 }
 
+function responseSignatureParts(value) {
+  return String(value || "").split("|").map(part => part.trim()).filter(Boolean);
+}
+
+function acknowledgedResponseParts() {
+  const saved = acknowledgedResponseSignature();
+  if (!saved) return new Set();
+  try {
+    const parsed = JSON.parse(saved);
+    if (Array.isArray(parsed)) return new Set(parsed.map(String));
+  } catch {
+    // Older versions stored a single pipe-delimited signature.
+  }
+  return new Set(responseSignatureParts(saved));
+}
+
+function hasUnacknowledgedResponse() {
+  const acknowledged = acknowledgedResponseParts();
+  return responseSignatureParts(currentResponseSignature).some(part => !acknowledged.has(part));
+}
+
 function acknowledgeDisplayedResponse() {
   if (!currentResponseSignature || typeof localStorage === "undefined") return;
   try {
-    localStorage.setItem(responseAcknowledgementStorageKey(), currentResponseSignature);
+    const acknowledged = acknowledgedResponseParts();
+    responseSignatureParts(currentResponseSignature).forEach(part => acknowledged.add(part));
+    localStorage.setItem(responseAcknowledgementStorageKey(), JSON.stringify([...acknowledged].slice(-100)));
   } catch {
     // Returning home should still work when browser storage is unavailable.
   }
@@ -758,6 +834,39 @@ function unignoredIncomingIds() {
   });
 }
 
+function signalTimestamp(value) {
+  const timestamp = new Date(value || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function nextPendingHomeMode({ excludeMode = "" } = {}) {
+  const pending = [];
+  if (excludeMode !== "incoming" && unignoredIncomingIds().length) {
+    pending.push({ mode: "incoming", timestamp: signalTimestamp(state.incomingLatestAt), order: 1 });
+  }
+  if (excludeMode !== "responded" && hasUnacknowledgedResponse()) {
+    pending.push({ mode: "responded", timestamp: signalTimestamp(state.responseLatestAt), order: 2 });
+  }
+  pending.sort((a, b) => b.timestamp - a.timestamp || b.order - a.order);
+  return pending[0]?.mode || "calm";
+}
+
+function homeExitLabel() {
+  const excludeMode = ["incoming", "responded"].includes(state.homeMode) ? state.homeMode : "";
+  return nextPendingHomeMode({ excludeMode }) === "calm" ? "回到首页" : "查看下一条";
+}
+
+function currentHomeSignalStillPending() {
+  if (state.homeMode === "incoming") return unignoredIncomingIds().length > 0;
+  if (state.homeMode === "responded") return hasUnacknowledgedResponse();
+  return false;
+}
+
+function finishCurrentHomeSignal() {
+  if (state.homeMode === "responded") acknowledgeDisplayedResponse();
+  else if (state.homeMode === "incoming") ignoreCurrentIncomingSignals();
+}
+
 function applyServerState(result, { chooseHomeMode = false } = {}) {
   if (!result?.ok) return false;
   const selectionWasOpen = state.selectorOpen;
@@ -780,13 +889,27 @@ function applyServerState(result, { chooseHomeMode = false } = {}) {
     state.memberSettings[person.id] ||= { note: "", receive: true, send: true };
   }
   state.relations = Array.isArray(result.relations) ? result.relations : [];
+  if (Array.isArray(result.memberSettings)) {
+    state.memberSettings = defaultMemberSettings();
+    for (const settings of result.memberSettings) {
+      if (!settings?.id || !people[settings.id] || settings.id === "me") continue;
+      state.memberSettings[settings.id] = {
+        note: String(settings.note || "").trim().slice(0, 12),
+        receive: settings.receive !== false,
+        send: settings.send !== false
+      };
+    }
+  }
+  if (Array.isArray(result.proposals)) state.proposals = result.proposals;
   incomingIds = Array.isArray(result.incomingIds) ? result.incomingIds.filter(id => people[id]) : [];
   state.incomingEvents = result.incomingEvents && typeof result.incomingEvents === "object" ? result.incomingEvents : {};
+  state.incomingLatestAt = String(result.incomingLatestAt || "");
   const serverResponseIds = Array.isArray(result.responseIds) ? result.responseIds.filter(id => people[id]) : [];
   const serverResponseSignature = String(result.responseSignature || [...serverResponseIds].sort().join(","));
   // Keep the visible response snapshot until the user explicitly leaves it.
   if (serverResponseIds.length || state.homeMode !== "responded") {
     state.responseIds = serverResponseIds;
+    state.responseLatestAt = String(result.responseLatestAt || "");
     currentResponseSignature = serverResponseSignature;
   }
   const selectableIncomingIds = availableIncomingIds();
@@ -798,10 +921,16 @@ function applyServerState(result, { chooseHomeMode = false } = {}) {
   if (!state.relations.some(relation => relation.id === state.selectedRelationId)) {
     state.selectedRelationId = state.relations[0]?.id || null;
   }
+  if (!state.proposals.some(proposal => proposal.id === state.selectedProposalId)) {
+    state.selectedProposalId = null;
+  }
+  if (state.page === "proposal-pending" && currentProposal()?.status === "approved") {
+    state.page = "invite-ready";
+  }
   if (chooseHomeMode && !state.selectorOpen && !state.page && state.activeTab === "drink") {
-    if (serverResponseSignature && serverResponseSignature !== acknowledgedResponseSignature()) state.homeMode = "responded";
-    else if (unignoredIncomingIds().length) state.homeMode = "incoming";
-    else if (state.homeMode === "incoming") state.homeMode = "calm";
+    if (state.homeMode === "calm" || (["incoming", "responded"].includes(state.homeMode) && !currentHomeSignalStillPending())) {
+      state.homeMode = nextPendingHomeMode();
+    }
   }
   return Boolean(result.profile);
 }
@@ -856,6 +985,20 @@ async function openInviteFromUrl() {
   if (!initialInviteCode || !authAccount || !cloudDataAvailable || authNeedsOnboarding) return;
   state.draftInviteCode = initialInviteCode;
   await previewInviteRemote();
+}
+
+function openProposalFromUrl() {
+  if (!initialProposalId || authNeedsOnboarding) return false;
+  const proposal = state.proposals.find(item => item.id === initialProposalId);
+  if (!proposal) return false;
+  const mine = proposal.proposerId === "me";
+  if (!mine && !(proposal.status === "pending" && proposal.userVote === null)) return false;
+  state.selectedProposalId = proposal.id;
+  state.selectedRelationId = proposal.relationId;
+  state.activeTab = "connect";
+  state.pageHistory = [];
+  state.page = !mine ? "proposal-confirm" : proposal.status === "approved" ? "invite-ready" : "proposal-pending";
+  return true;
 }
 
 async function sendLoginCode() {
@@ -914,6 +1057,7 @@ async function verifyLoginCode() {
       startServerSync();
       await refreshPushState({ syncExisting: true });
       await openInviteFromUrl();
+      openProposalFromUrl();
       showToast(`欢迎回来，${people.me.name}`);
     } else {
       resetAccountData();
@@ -962,6 +1106,7 @@ async function validateAuthSession({ discoverCookie = false } = {}) {
       startServerSync();
       await refreshPushState({ syncExisting: true });
       await openInviteFromUrl();
+      openProposalFromUrl();
       render();
     } else if (authNeedsOnboarding || result.isNewUser === true) {
       saveAuthSession(authToken, authAccount, true);
@@ -1035,6 +1180,10 @@ function currentRelation() {
   return state.relations.find(relation => relation.id === state.selectedRelationId);
 }
 
+function currentProposal() {
+  return state.proposals.find(proposal => proposal.id === state.selectedProposalId);
+}
+
 function memberSettingsFor(id) {
   return state.memberSettings[id] || { note: "", receive: true, send: true };
 }
@@ -1063,7 +1212,7 @@ function enterHome() {
 }
 
 async function copyDemoInvitation() {
-  const code = state.page === "invite-ready" ? "P8L4" : currentRelation()?.inviteCode;
+  const code = state.page === "invite-ready" ? (currentProposal()?.inviteCode || "P8L4") : currentRelation()?.inviteCode;
   if (!code) return;
   try {
     await navigator.clipboard.writeText(code);
@@ -1076,6 +1225,8 @@ async function copyDemoInvitation() {
 async function handleForegroundPush(message) {
   if (message?.type !== "genyikou-push" || !authAccount || !cloudDataAvailable) return false;
   try {
+    const wasOutsideDrinkHome = Boolean(state.page) || state.activeTab !== "drink";
+    const wasCalm = state.homeMode === "calm";
     await syncServerState({ chooseHomeMode: true });
     const messageEventId = typeof URL === "function"
       ? new URL(message.url || "/", typeof location !== "undefined" ? location.origin : "https://genyikou.click").searchParams.get("event")
@@ -1088,21 +1239,16 @@ async function handleForegroundPush(message) {
       render();
       return true;
     }
-    if (message.category === "drink" && incomingIsNew) {
+    const messageIsRelevant = (message.category === "drink" && incomingIsNew)
+      || (message.category === "response" && hasUnacknowledgedResponse());
+    if (messageIsRelevant && (wasOutsideDrinkHome || wasCalm)) {
       state.page = null;
       state.pageHistory = [];
       state.activeTab = "drink";
-      state.homeMode = "incoming";
+      state.homeMode = nextPendingHomeMode();
       state.selectorOpen = false;
       state.demoPanel = false;
-      state.selectedIds = [...availableIncomingIds()];
-    } else if (message.category === "response" && state.responseIds.length) {
-      state.page = null;
-      state.pageHistory = [];
-      state.activeTab = "drink";
-      state.homeMode = "responded";
-      state.selectorOpen = false;
-      state.demoPanel = false;
+      if (state.homeMode === "incoming") state.selectedIds = [...availableIncomingIds()];
     }
     render();
     return true;
@@ -1304,7 +1450,7 @@ function sentTemplate() {
     <div class="sent-actions">
       ${state.lastDrinkShared ? "" : `<p class="personal-drink-note">这一口，仅自己可见</p>`}
       <button class="paper-action paper-action--hero paper-action--next-drink" data-action="drink" data-drink-return ${state.drinkFeedbackActive ? "disabled" : ""}><span>我喝了</span></button>
-      <button class="response-home-action response-home-action--quiet" data-action="return-home">回到首页</button>
+      <button class="response-home-action response-home-action--quiet" data-action="return-home">${homeExitLabel()}</button>
     </div>
   </section>`;
 }
@@ -1396,7 +1542,7 @@ function incomingTemplate() {
         </div>
         <div class="incoming-footer-actions">
           <p class="hold-hint">轻点跟所有人 · 长按选人</p>
-          <button class="response-home-action response-home-action--quiet" data-action="return-home">回到首页</button>
+          <button class="response-home-action response-home-action--quiet" data-action="return-home">${homeExitLabel()}</button>
         </div>`}
     <div class="hero-cup hero-cup--incoming">${cupMarkup("me")}</div>
   </section>`;
@@ -1443,7 +1589,7 @@ function followedTemplate() {
     </div>
     <div class="responded-actions">
       <button class="paper-action paper-action--hero paper-action--after" data-action="drink"><span>我喝了</span></button>
-      <button class="response-home-action" data-action="return-home">回到首页</button>
+      <button class="response-home-action" data-action="return-home">${homeExitLabel()}</button>
     </div>
   </section>`;
 }
@@ -1459,7 +1605,7 @@ function respondedTemplate() {
     </div>
     <div class="responded-actions">
       <button class="paper-action paper-action--hero paper-action--after" data-action="drink"><span>我喝了</span></button>
-      <button class="response-home-action" data-action="return-home">回到首页</button>
+      <button class="response-home-action" data-action="return-home">${homeExitLabel()}</button>
     </div>
   </section>`;
 }
@@ -1497,13 +1643,27 @@ function clinkPositions(count) {
 }
 
 function relationsTemplate() {
+  const proposalAlerts = state.proposals.flatMap(proposal => {
+    const mine = proposal.proposerId === "me";
+    if (!mine && !(proposal.status === "pending" && proposal.userVote === null)) return [];
+    const action = !mine ? "open-proposal-confirm" : proposal.status === "approved" ? "open-invite-ready" : "open-proposal-pending";
+    const small = !mine ? "等你确认" : proposal.status === "approved" ? "可以发出了" : proposal.status === "rejected" ? "邀请已结束" : "确认中";
+    const title = !mine
+      ? `${proposal.proposerName}想叫上${proposal.candidateLabel}`
+      : proposal.status === "approved"
+        ? `可以邀请${proposal.candidateLabel}了`
+        : proposal.status === "rejected"
+          ? `关于${proposal.candidateLabel}的邀请没有继续`
+          : `正在等大家确认${proposal.candidateLabel}`;
+    return [`<button class="flow-alert" data-action="${action}" data-proposal-id="${escapeHtml(proposal.id)}">
+      <span><small>${small}</small><strong>${escapeHtml(title)}</strong></span><i>→</i>
+    </button>`];
+  });
   return `<section class="subpage relations-page">
     <div class="subpage-heading">
       <h1>一起喝的人</h1>
     </div>
-    ${state.relations.some(relation => relation.id === "dorm" && relation.status === "active") ? `<button class="flow-alert" data-action="open-proposal-confirm">
-      <span><small>新邀请</small><strong>小明想叫上小亮</strong></span><i>→</i>
-    </button>` : ""}
+    ${proposalAlerts.join("")}
     ${state.relations.map((relation, index) => relationCardTemplate(relation, index)).join("")}
     ${state.relations.length ? "" : `<p class="relation-empty">还没有连接朋友<br><span>可以先发一份邀请。</span></p>`}
     <div class="relation-actions">
@@ -1721,9 +1881,9 @@ function relationDetailTemplate() {
       <button class="inline-add with-icon" data-action="add-member">${sketchIcon("create")}邀请朋友</button>
     </section>
     <section class="detail-section">
-      <div class="section-heading"><h2>信号</h2><span>${paused ? "已暂停" : ""}</span></div>
-      ${toggleRow("toggle-relation-receive", "接收这里的信号", "关闭后，不再通过这段关系接收", Boolean(relation?.receive))}
-      ${toggleRow("toggle-relation-send", "分享我的这一口", "关闭后，不再向这段关系发送", Boolean(relation?.send))}
+      <div class="section-heading"><h2>整段关系的信号</h2><span>${paused ? "已暂停" : "对这里所有人"}</span></div>
+      ${toggleRow("toggle-relation-receive", "接收这里所有人的信号", "关闭后，这段关系里的成员全部静音", Boolean(relation?.receive))}
+      ${toggleRow("toggle-relation-send", "向这里所有人分享", "关闭后，不再向这段关系里的成员发送", Boolean(relation?.send))}
     </section>
     <button class="danger-link with-icon" data-action="leave-relation">${sketchIcon("leave")}退出这段关系</button>
   </section>`;
@@ -1746,32 +1906,49 @@ function addMemberTemplate() {
 }
 
 function proposalPendingTemplate() {
-  const candidate = state.draftCandidate || "小亮";
+  const proposal = currentProposal();
+  const candidate = proposal?.candidateLabel || state.draftCandidate || "小亮";
+  if (proposal?.status === "rejected") {
+    return `<section class="flow-page">
+      ${flowLead("这次没有继续", `邀请对象：${escapeHtml(candidate)}`)}
+      <div class="status-mark"><strong>邀请已结束</strong><span>不会显示是谁拒绝了</span></div>
+      <button class="flow-primary" data-action="dismiss-proposal">知道了</button>
+    </section>`;
+  }
+  if (proposal?.status === "approved") return inviteReadyTemplate();
   return `<section class="flow-page">
     ${flowLead(`等待大家确认`, `邀请对象：${escapeHtml(candidate)}`)}
-    <div class="status-mark"><strong>确认中</strong><span>不会显示谁还没确认</span></div>
+    <div class="status-mark"><strong>确认中</strong><span>${proposal ? `${proposal.approvalCount} / ${proposal.memberCount} 已确认` : "不会显示谁还没确认"}</span></div>
     <div class="notice-box"><p>全员同意后生成邀请。</p></div>
-    <button class="flow-secondary" data-action="simulate-proposal-ready">演示：全员同意</button>
+    ${cloudDataAvailable ? "" : `<button class="flow-secondary" data-action="simulate-proposal-ready">演示：全员同意</button>`}
     <button class="danger-link" data-action="withdraw-proposal">撤回邀请</button>
   </section>`;
 }
 
 function proposalConfirmTemplate() {
+  const proposal = currentProposal();
+  const relation = state.relations.find(item => item.id === proposal?.relationId) || currentRelation();
+  const proposerName = proposal?.proposerName || "小明";
+  const candidate = proposal?.candidateLabel || state.draftCandidate || "小亮";
+  const memberIds = relation?.memberIds || ["me", "ming", "hong"];
   return `<section class="flow-page">
-    ${flowLead("小明想邀请小亮", "加入后，每个人权利相同。")}
-    <div class="people-preview">${["me", "ming", "hong"].map(id => memberPreview(id)).join("")}</div>
+    ${flowLead(`${escapeHtml(proposerName)}想邀请${escapeHtml(candidate)}`, "加入后，每个人权利相同。")}
+    <div class="people-preview">${memberIds.map(id => memberPreview(id)).join("")}</div>
     <div class="notice-box"><p>不会公开谁拒绝。</p></div>
     <div class="flow-actions"><button class="flow-secondary" data-action="reject-proposal">不同意</button><button class="flow-primary" data-action="approve-proposal">同意</button></div>
   </section>`;
 }
 
 function inviteReadyTemplate() {
-  const candidate = state.draftCandidate || "小亮";
+  const proposal = currentProposal();
+  const candidate = proposal?.candidateLabel || state.draftCandidate || "小亮";
+  const code = proposal?.inviteCode || "P8L4";
   return `<section class="flow-page">
     ${flowLead(`可以邀请${escapeHtml(candidate)}了`)}
-    <div class="invite-ticket"><small>${escapeHtml(candidate)}的邀请链接</small><strong>genyikou.click/join/P8L4</strong><span>备用邀请码 · P8L4</span></div>
+    <div class="invite-ticket"><small>${escapeHtml(candidate)}的邀请链接</small><strong>genyikou.click/join/${escapeHtml(code)}</strong><span>备用邀请码 · ${escapeHtml(code)}</span></div>
     <button class="flow-primary with-icon" data-action="copy-invite">${sketchIcon("copy")}复制邀请码</button>
-    <button class="text-action" data-action="finish-invite-ready">稍后</button>
+    <button class="text-action" data-action="finish-invite-ready">返回关系</button>
+    <button class="danger-link" data-action="withdraw-proposal">撤回邀请</button>
   </section>`;
 }
 
@@ -1786,9 +1963,9 @@ function memberDetailTemplate() {
     <div class="member-hero">${cupMarkup(memberId)}<div><h1>${escapeHtml(person.name)}</h1></div></div>
     <label class="field-block"><span>私人备注</span><input id="member-note-input" maxlength="12" value="${escapeHtml(settings.note)}" placeholder="添加备注"></label>
     <section class="detail-section">
-      <div class="section-heading"><h2>我们之间的信号</h2><span>所有共同关系</span></div>
-      ${toggleRow("toggle-member-receive", "看 TA 的信号", "关闭后，TA 不会知道", settings.receive)}
-      ${toggleRow("toggle-member-send", "让 TA 看我的信号", "与上一个开关相互独立", settings.send)}
+      <div class="section-heading"><h2>只针对 TA</h2><span>个人屏蔽</span></div>
+      ${toggleRow("toggle-member-receive", "看 TA 的信号", "关闭后，只屏蔽 TA 的信号", settings.receive)}
+      ${toggleRow("toggle-member-send", "让 TA 看我的信号", "关闭后，只不再向 TA 发送", settings.send)}
     </section>
     <button class="flow-primary" data-action="save-member-settings">保存</button>
   </section>`;
@@ -2265,20 +2442,18 @@ async function handleAction(event) {
     navigateTo(state.entryIntent === "join" ? "join-relation" : "create-relation");
   }
   else if (action === "return-home") {
-    acknowledgeDisplayedResponse();
-    ignoreCurrentIncomingSignals();
+    if (!state.page && state.activeTab === "drink") finishCurrentHomeSignal();
     state.page = null;
     state.pageHistory = [];
     state.activeTab = "drink";
-    state.homeMode = "calm";
+    state.homeMode = nextPendingHomeMode();
     state.selectorOpen = false;
     state.demoPanel = false;
   }
   else if (action === "drink") {
     // Merge accidental taps during the brief feedback, not later drinking rounds.
     if (state.drinkFeedbackActive) return;
-    if (state.homeMode === "responded") acknowledgeDisplayedResponse();
-    ignoreCurrentIncomingSignals();
+    finishCurrentHomeSignal();
     state.activeTab = "drink";
     state.lastDrinkShared = canShareDrink();
     state.homeMode = "sent";
@@ -2310,9 +2485,12 @@ async function handleAction(event) {
     state.selectedRelationId = relation.id;
     navigateTo(relation.status === "pending" ? "waiting-member" : "relation-detail");
   }
-  else if (action === "open-proposal-confirm") {
-    state.selectedRelationId = "dorm";
-    navigateTo("proposal-confirm");
+  else if (["open-proposal-confirm", "open-proposal-pending", "open-invite-ready"].includes(action)) {
+    const proposal = state.proposals.find(item => item.id === event.currentTarget.dataset.proposalId);
+    if (!proposal) return;
+    state.selectedProposalId = proposal.id;
+    state.selectedRelationId = proposal.relationId;
+    navigateTo(action === "open-proposal-confirm" ? "proposal-confirm" : action === "open-invite-ready" ? "invite-ready" : "proposal-pending");
   }
   else if (action === "finish-create-relation") {
     const note = state.draftRelationNote.trim();
@@ -2414,20 +2592,120 @@ async function handleAction(event) {
     state.activeTab = "connect";
     showToast("邀请已取消");
   }
-  else if (action === "add-member") navigateTo("add-member");
-  else if (action === "submit-proposal") replacePage("proposal-pending");
-  else if (action === "simulate-proposal-ready") replacePage("invite-ready");
+  else if (action === "add-member") {
+    state.draftCandidate = "";
+    state.selectedProposalId = null;
+    navigateTo("add-member");
+  }
+  else if (action === "submit-proposal") {
+    const candidateLabel = state.draftCandidate.trim();
+    const relation = currentRelation();
+    if (!candidateLabel || !relation) return;
+    if (cloudDataAvailable) {
+      try {
+        const result = await appRequest("createMemberProposal", { relationId: relation.id, candidateLabel });
+        applyServerState(result);
+        state.selectedProposalId = result.proposalId;
+      } catch (error) {
+        showToast(error.message || "邀请确认暂时没有发出");
+        render();
+        return;
+      }
+    } else {
+      const proposal = {
+        id: `proposal-${Date.now()}`,
+        relationId: relation.id,
+        proposerId: "me",
+        proposerName: people.me.name,
+        candidateLabel,
+        status: "pending",
+        inviteCode: "",
+        userVote: true,
+        approvalCount: 1,
+        memberCount: relation.memberIds.length,
+        createdAt: new Date().toISOString()
+      };
+      state.proposals.unshift(proposal);
+      state.selectedProposalId = proposal.id;
+    }
+    replacePage(currentProposal()?.status === "approved" ? "invite-ready" : "proposal-pending");
+  }
+  else if (action === "simulate-proposal-ready") {
+    const proposal = currentProposal();
+    if (!proposal || cloudDataAvailable) return;
+    proposal.status = "approved";
+    proposal.inviteCode = "P8L4";
+    proposal.approvalCount = proposal.memberCount;
+    replacePage("invite-ready");
+  }
   else if (action === "withdraw-proposal") {
+    const proposal = currentProposal();
+    if (!proposal) return;
+    if (cloudDataAvailable) {
+      try {
+        const result = await appRequest("withdrawMemberProposal", { proposalId: proposal.id });
+        applyServerState(result);
+      } catch (error) {
+        showToast(error.message || "这份邀请暂时没有撤回");
+        render();
+        return;
+      }
+    } else state.proposals = state.proposals.filter(item => item.id !== proposal.id);
+    state.selectedProposalId = null;
     returnToRelationDetail();
     showToast("已撤回，对方不会收到通知");
   }
+  else if (action === "dismiss-proposal") {
+    const proposal = currentProposal();
+    if (proposal && cloudDataAvailable) {
+      try {
+        const result = await appRequest("withdrawMemberProposal", { proposalId: proposal.id });
+        applyServerState(result);
+      } catch (error) {
+        showToast(error.message || "暂时没有关闭这条消息");
+        render();
+        return;
+      }
+    } else if (proposal) state.proposals = state.proposals.filter(item => item.id !== proposal.id);
+    state.selectedProposalId = null;
+    returnToRelationDetail();
+  }
   else if (action === "approve-proposal") {
+    const proposal = currentProposal();
+    if (!proposal) return;
+    if (cloudDataAvailable) {
+      try {
+        const result = await appRequest("voteMemberProposal", { proposalId: proposal.id, approved: true });
+        applyServerState(result);
+      } catch (error) {
+        showToast(error.message || "确认暂时没有送达");
+        render();
+        return;
+      }
+    } else {
+      proposal.userVote = true;
+      proposal.approvalCount += 1;
+    }
+    state.selectedProposalId = null;
     state.page = null;
     state.pageHistory = [];
     state.activeTab = "connect";
     showToast("已同意，等大家确认");
   }
   else if (action === "reject-proposal") {
+    const proposal = currentProposal();
+    if (!proposal) return;
+    if (cloudDataAvailable) {
+      try {
+        const result = await appRequest("voteMemberProposal", { proposalId: proposal.id, approved: false });
+        applyServerState(result);
+      } catch (error) {
+        showToast(error.message || "选择暂时没有送达");
+        render();
+        return;
+      }
+    } else proposal.status = "rejected";
+    state.selectedProposalId = null;
     state.page = null;
     state.pageHistory = [];
     state.activeTab = "connect";
@@ -2461,13 +2739,26 @@ async function handleAction(event) {
   else if (action === "save-member-settings") {
     const draft = state.memberEditDraft;
     if (!draft || draft.memberId !== state.selectedMemberId) return;
-    state.memberSettings[draft.memberId] = {
+    const nextSettings = {
       note: String(draft.note).trim().slice(0, 12),
       receive: draft.receive,
       send: draft.send
     };
+    if (cloudDataAvailable) {
+      try {
+        const result = await appRequest("updateMemberSettings", {
+          memberId: draft.memberId,
+          ...nextSettings
+        });
+        applyServerState(result);
+      } catch (error) {
+        showToast(error.message || "个人信号设置暂时没有同步");
+        render();
+        return;
+      }
+    } else state.memberSettings[draft.memberId] = nextSettings;
     goBack();
-    showToast("备注和信号设置已保存");
+    showToast("这位成员的设置已保存");
   }
   else if (action === "leave-relation") navigateTo("leave-relation");
   else if (action === "confirm-leave-relation") {
@@ -2630,6 +2921,13 @@ async function confirmFollow() {
       showToast(error.message || "这一口暂时没有回应出去");
       return;
     }
+  } else {
+    incomingIds = incomingIds.filter(id => !ids.includes(id));
+    ids.forEach(id => {
+      const eventId = state.incomingEvents?.[id];
+      if (eventId) ignoredIncomingEventIds.add(String(eventId));
+    });
+    saveIgnoredIncomingSignals();
   }
   showToast("已跟一口");
 }

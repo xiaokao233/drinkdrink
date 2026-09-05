@@ -76,4 +76,35 @@ vm.runInContext(`
   assert.ok(incomingTemplate().includes('data-hold-follow disabled'));
 `, context);
 
-console.log("PASS 成员详情、私人备注与独立信号设置检查");
+await vm.runInContext(`
+  (async () => {
+    authAccount = { id: "user-me", email: "me@example.com" };
+    cloudDataAvailable = true;
+    state.relations = demoRelations();
+    state.selectedRelationId = "dorm";
+    state.page = "member-detail";
+    state.pageHistory = ["relation-detail"];
+    state.selectedMemberId = "ming";
+    state.memberEditDraft = { memberId: "ming", note: "明仔", receive: false, send: true };
+    document.querySelector("#member-note-input").value = "云端明";
+    let submitted = null;
+    appRequest = async (action, payload) => {
+      submitted = { action, payload };
+      return {
+        ok: true,
+        profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+        people: [], relations: state.relations,
+        memberSettings: [{ id: "ming", note: "云端明", receive: false, send: true }],
+        proposals: [], incomingIds: [], incomingEvents: {},
+        incomingLatestAt: "", responseIds: [], responseLatestAt: "", responseSignature: ""
+      };
+    };
+    await handleAction({ currentTarget: { dataset: { action: "save-member-settings" } } });
+    assert.equal(submitted.action, "updateMemberSettings");
+    assert.deepEqual(submitted.payload, { memberId: "ming", note: "云端明", receive: false, send: true });
+    assert.deepEqual(state.memberSettings.ming, { note: "云端明", receive: false, send: true });
+    assert.equal(state.page, "relation-detail");
+  })()
+`, context);
+
+console.log("PASS 关系总开关、成员个人屏蔽与云端保存检查");

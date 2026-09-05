@@ -46,6 +46,33 @@ export async function ensureSchema() {
       joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (relation_id, user_id)
     )`;
+    await sql`CREATE TABLE IF NOT EXISTS member_signal_settings (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      other_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      note VARCHAR(12) NOT NULL DEFAULT '',
+      receive BOOLEAN NOT NULL DEFAULT TRUE,
+      send BOOLEAN NOT NULL DEFAULT TRUE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, other_user_id),
+      CHECK (user_id <> other_user_id)
+    )`;
+    await sql`CREATE TABLE IF NOT EXISTS member_invite_proposals (
+      id UUID PRIMARY KEY,
+      relation_id UUID NOT NULL REFERENCES relations(id) ON DELETE CASCADE,
+      proposer_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      candidate_label VARCHAR(12) NOT NULL,
+      invite_code VARCHAR(10) UNIQUE,
+      status VARCHAR(16) NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`;
+    await sql`CREATE TABLE IF NOT EXISTS member_invite_votes (
+      proposal_id UUID NOT NULL REFERENCES member_invite_proposals(id) ON DELETE CASCADE,
+      voter_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      approved BOOLEAN NOT NULL,
+      voted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (proposal_id, voter_user_id)
+    )`;
     await sql`CREATE TABLE IF NOT EXISTS drink_events (
       id UUID PRIMARY KEY,
       sender_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -76,6 +103,9 @@ export async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`;
     await sql`CREATE INDEX IF NOT EXISTS relation_members_user_idx ON relation_members(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS member_signal_settings_other_idx ON member_signal_settings(other_user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS member_invite_proposals_relation_idx ON member_invite_proposals(relation_id, created_at DESC)`;
+    await sql`CREATE INDEX IF NOT EXISTS member_invite_votes_voter_idx ON member_invite_votes(voter_user_id)`;
     await sql`CREATE INDEX IF NOT EXISTS drink_targets_recipient_idx ON drink_targets(recipient_user_id, responded_at)`;
     await sql`CREATE INDEX IF NOT EXISTS drink_events_sender_idx ON drink_events(sender_user_id, created_at DESC)`;
     await sql`CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(user_id)`;

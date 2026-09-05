@@ -127,6 +127,7 @@ vm.runInContext(`
   state.draftRelationNote = "复制测试";
   act("finish-create-relation");
 `, context);
+context.navigator.clipboard.writeText = async value => { copiedText = value; };
 await vm.runInContext("copyDemoInvitation()", context);
 assert.match(copiedText, /^G\d+$/);
 assert.equal(toast.textContent, "演示邀请码已复制");
@@ -146,5 +147,47 @@ vm.runInContext(`
   act("accept-invite");
   assert.equal(hasConnectedFriends(), true);
   assert.equal(state.relations.length, 1);
+
+  // Active relationships use a real all-member confirmation state before
+  // exposing the new person's one-time invite code.
+  state.page = "relation-detail";
+  state.draftCandidate = "小亮";
+  act("submit-proposal");
+  assert.equal(currentProposal().status, "pending");
+  assert.equal(currentProposal().candidateLabel, "小亮");
+  assert.ok(proposalPendingTemplate().includes("全员同意后生成邀请"));
+  assert.ok(!proposalPendingTemplate().includes("genyikou.click/join/"));
+  act("simulate-proposal-ready");
+  assert.equal(currentProposal().status, "approved");
+  assert.equal(state.page, "invite-ready");
+  assert.ok(inviteReadyTemplate().includes("genyikou.click/join/P8L4"));
+`, context);
+context.navigator.clipboard.writeText = async value => { copiedText = value; };
+await vm.runInContext("copyDemoInvitation()", context);
+assert.equal(copiedText, "P8L4");
+vm.runInContext(`
+  act("finish-invite-ready");
+  assert.equal(state.page, "relation-detail");
+
+  const relation = currentRelation();
+  state.proposals.unshift({
+    id: "proposal-incoming",
+    relationId: relation.id,
+    proposerId: "ming",
+    proposerName: "小明",
+    candidateLabel: "阿安",
+    status: "pending",
+    inviteCode: "",
+    userVote: null,
+    approvalCount: 1,
+    memberCount: relation.memberIds.length,
+    createdAt: new Date().toISOString()
+  });
+  assert.ok(relationsTemplate().includes("小明想叫上阿安"));
+  act("open-proposal-confirm", { proposalId: "proposal-incoming" });
+  assert.ok(proposalConfirmTemplate().includes("小明想邀请阿安"));
+  act("approve-proposal");
+  assert.equal(state.activeTab, "connect");
+  assert.equal(state.proposals.find(item => item.id === "proposal-incoming").userVote, true);
 `, context);
 console.log("PASS 邀请完成、保留与取消、新身份、模拟加入及个人喝水状态检查");

@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 const baseUrl = "http://127.0.0.1:4173";
 
 const [pageResponse, scriptResponse, workerResponse, stylesResponse, manifestResponse, fontResponse, cupAssetResponse, navAssetResponse, appIconResponse, appleIconResponse] = await Promise.all([
@@ -89,5 +91,16 @@ assert(script.includes("sketchIconAssets") && styles.includes(".ui-sketch-icon")
 assert(styles.includes("drop-shadow(0 -.8px 0 #1f3540)"), "手绘小图标线条没有统一加深");
 assert(styles.includes(".screen-content:has(> .flow-page)") && styles.includes(".screen-content:has(> .subpage)") && styles.includes("margin-block: auto"), "内容较少的内页应居中，长页面保持可滚动");
 assert(/\.danger-link \.ui-sketch-icon--leave\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;/.test(styles), "退出关系的 bye 图标应使用独立的大尺寸");
+
+const appStateSource = fs.readFileSync(new URL("../api/app-state.mjs", import.meta.url), "utf8");
+const databaseSource = fs.readFileSync(new URL("../api/_db.mjs", import.meta.url), "utf8");
+assert(appStateSource.includes("INTERVAL '45 minutes'") && !appStateSource.includes("INTERVAL '24 hours'"), "未回应喝水提醒应只保留一节课的 45 分钟");
+assert(appStateSource.includes("incomingLatestAt") && appStateSource.includes("responseLatestAt") && script.includes("nextPendingHomeMode"), "两类即时消息缺少按时间排队规则");
+assert(databaseSource.includes("member_signal_settings") && appStateSource.includes("updateMemberSettings"), "成员个人屏蔽尚未接入云端");
+assert(appStateSource.includes("mine.send = TRUE") && appStateSource.includes("mine_setting.send = FALSE") && appStateSource.includes("other_setting.receive = FALSE"), "关系总开关与成员个人开关没有共同参与信号过滤");
+for (const handler of ["createMemberProposal", "voteMemberProposal", "withdrawMemberProposal"]) {
+  assert(appStateSource.includes(handler), `多人邀请确认缺少云端操作：${handler}`);
+}
+assert(databaseSource.includes("member_invite_proposals") && databaseSource.includes("member_invite_votes"), "多人邀请确认缺少云端数据表");
 
 console.log("PASS 页面资源与核心交互结构检查");

@@ -215,7 +215,9 @@ await vm.runInContext(`
       people: [], relations: [], incomingIds: ["ming"], incomingEvents: { ming: "new-drink" },
       responseIds: [], responseSignature: ""
     }, { chooseHomeMode: true });
-    if (state.homeMode !== "incoming") throw new Error("新的喝水提醒仍应自动进入待回应界面");
+    if (state.homeMode !== "sent") throw new Error("新的喝水提醒不应覆盖正在展示的我喝了反馈");
+    await handleAction({ currentTarget: { dataset: { action: "return-home" } } });
+    if (state.homeMode !== "incoming") throw new Error("离开我喝了反馈后应立即展示排队的新提醒");
   })()
 `, context);
 console.log("PASS 旧提醒不回弹、新提醒仍即时出现检查");
@@ -277,6 +279,62 @@ await vm.runInContext(`
   })()
 `, context);
 console.log("PASS 长按选择只回应已勾选对象检查");
+
+await vm.runInContext(`
+  (async () => {
+    authAccount = { id: "user-order", email: "order@example.com" };
+    cloudDataAvailable = true;
+    state.page = null;
+    state.activeTab = "drink";
+    state.selectorOpen = false;
+    state.homeMode = "calm";
+    ignoredIncomingEventIds.clear();
+    localStorage.removeItem(responseAcknowledgementStorageKey());
+
+    applyServerState({
+      ok: true,
+      profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+      people: [], relations: [],
+      incomingIds: ["ming"], incomingEvents: { ming: "incoming-older" },
+      incomingLatestAt: "2026-09-05T08:00:00.000Z",
+      responseIds: ["hong"], responseLatestAt: "2026-09-05T08:05:00.000Z",
+      responseSignature: "response-newer:hong:2026-09-05T08:05:00.000Z"
+    }, { chooseHomeMode: true });
+    if (state.homeMode !== "responded") throw new Error("同时有两类消息时应先显示时间较新的朋友回应");
+    if (homeExitLabel() !== "查看下一条") throw new Error("存在排队消息时退出按钮应提示查看下一条");
+    await handleAction({ currentTarget: { dataset: { action: "return-home" } } });
+    if (state.homeMode !== "incoming") throw new Error("处理新回应后应继续显示较早的朋友喝水消息");
+    await handleAction({ currentTarget: { dataset: { action: "return-home" } } });
+    if (state.homeMode !== "calm") throw new Error("两类消息都处理后才应回到平静首页");
+
+    ignoredIncomingEventIds.clear();
+    localStorage.removeItem(responseAcknowledgementStorageKey());
+    state.homeMode = "calm";
+    applyServerState({
+      ok: true,
+      profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+      people: [], relations: [],
+      incomingIds: ["ming"], incomingEvents: { ming: "incoming-newer" },
+      incomingLatestAt: "2026-09-05T08:10:00.000Z",
+      responseIds: ["hong"], responseLatestAt: "2026-09-05T08:05:00.000Z",
+      responseSignature: "response-older:hong:2026-09-05T08:05:00.000Z"
+    }, { chooseHomeMode: true });
+    if (state.homeMode !== "incoming") throw new Error("朋友喝水时间更新时应先显示朋友喝水消息");
+    await handleAction({ currentTarget: { dataset: { action: "return-home" } } });
+    if (state.homeMode !== "responded") throw new Error("处理朋友喝水后应继续显示排队的朋友回应");
+
+    state.homeMode = "sent";
+    applyServerState({
+      ok: true,
+      profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+      people: [], relations: [], incomingIds: [], incomingEvents: {}, incomingLatestAt: "",
+      responseIds: ["ming"], responseLatestAt: "2026-09-05T08:20:00.000Z",
+      responseSignature: "response-latest:ming:2026-09-05T08:20:00.000Z"
+    }, { chooseHomeMode: true });
+    if (state.homeMode !== "sent") throw new Error("排队消息不应覆盖正在展示的操作结果");
+  })()
+`, context);
+console.log("PASS 两类消息按时间排队、逐条处理与结果页保留检查");
 
 let prefersReducedMotion = false;
 const motionProbe = { paused: false, cssPaused: false, time: 10 };

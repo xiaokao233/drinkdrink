@@ -29,6 +29,13 @@ function timeLabel(value) {
   return `${Math.floor(hours / 24)} 天前`;
 }
 
+function latestIso(rows, key) {
+  const timestamps = rows
+    .map(row => new Date(row[key]).getTime())
+    .filter(Number.isFinite);
+  return timestamps.length ? new Date(Math.max(...timestamps)).toISOString() : "";
+}
+
 async function profileFor(userId) {
   const sql = database();
   const rows = await sql`SELECT name, cup_id, colors FROM profiles WHERE user_id = ${userId} LIMIT 1`;
@@ -88,6 +95,26 @@ async function readState(user) {
     });
   }
 
+  const memberSettingRows = await sql`SELECT other_user_id AS id, note, receive, send
+    FROM member_signal_settings
+    WHERE user_id = ${user.id}`;
+
+  const proposalRows = await sql`SELECT proposal.id, proposal.relation_id, proposal.proposer_user_id,
+      proposal.candidate_label, proposal.invite_code, proposal.status, proposal.created_at,
+      profile.name AS proposer_name, vote.approved AS user_vote,
+      (SELECT COUNT(*)::INT FROM relation_members members
+        WHERE members.relation_id = proposal.relation_id) AS member_count,
+      (SELECT COUNT(*)::INT FROM member_invite_votes votes
+        WHERE votes.proposal_id = proposal.id AND votes.approved = TRUE) AS approval_count
+    FROM member_invite_proposals proposal
+    JOIN relation_members membership ON membership.relation_id = proposal.relation_id
+      AND membership.user_id = ${user.id}
+    LEFT JOIN profiles profile ON profile.user_id = proposal.proposer_user_id
+    LEFT JOIN member_invite_votes vote ON vote.proposal_id = proposal.id
+      AND vote.voter_user_id = ${user.id}
+    WHERE proposal.status IN ('pending', 'approved', 'rejected')
+    ORDER BY proposal.created_at DESC`;
+
   const incomingRows = await sql`SELECT DISTINCT ON (e.sender_user_id)
       e.id AS event_id, e.sender_user_id AS id, e.created_at, p.name, p.cup_id, p.colors
     FROM drink_targets target
@@ -95,7 +122,27 @@ async function readState(user) {
     LEFT JOIN profiles p ON p.user_id = e.sender_user_id
     WHERE target.recipient_user_id = ${user.id}
       AND target.responded_at IS NULL
-      AND e.created_at > NOW() - INTERVAL '24 hours'
+      AND e.created_at > NOW() - INTERVAL '45 minutes'
+      AND NOT EXISTS (
+        SELECT 1 FROM member_signal_settings setting
+        WHERE setting.user_id = ${user.id}
+          AND setting.other_user_id = e.sender_user_id
+          AND setting.receive = FALSE
+      )
+      AND EXISTS (
+        SELECT 1 FROM relation_members mine
+        JOIN relation_members sender ON sender.relation_id = mine.relation_id
+        WHERE mine.user_id = ${user.id}
+          AND sender.user_id = e.sender_user_id
+          AND mine.receive = TRUE
+          AND sender.send = TRUE
+          AND NOT EXISTS (
+            SELECT 1 FROM member_signal_settings sender_setting
+            WHERE sender_setting.user_id = e.sender_user_id
+              AND sender_setting.other_user_id = ${user.id}
+              AND sender_setting.send = FALSE
+          )
+      )
     ORDER BY e.sender_user_id, e.created_at DESC
     LIMIT 12`;
   const incomingEvents = {};
@@ -112,6 +159,20 @@ async function readState(user) {
     WHERE event.sender_user_id = ${user.id}
       AND target.responded_at IS NOT NULL
       AND target.responded_at > NOW() - INTERVAL '30 minutes'
+      AND NOT EXISTS (
+        SELECT 1 FROM member_signal_settings setting
+        WHERE setting.user_id = ${user.id}
+          AND setting.other_user_id = target.recipient_user_id
+          AND setting.receive = FALSE
+      )
+      AND EXISTS (
+        SELECT 1 FROM relation_members mine
+        JOIN relation_members responder ON responder.relation_id = mine.relation_id
+        WHERE mine.user_id = ${user.id}
+          AND responder.user_id = target.recipient_user_id
+          AND mine.receive = TRUE
+          AND responder.send = TRUE
+      )
     ORDER BY target.recipient_user_id, target.responded_at DESC
     LIMIT 12`;
   for (const row of responseRows) {
@@ -126,10 +187,31 @@ async function readState(user) {
     ok: true,
     profile,
     relations,
+    memberSettings: memberSettingRows.map(row => ({
+      id: row.id,
+      note: row.note || "",
+      receive: row.receive,
+      send: row.send
+    })),
+    proposals: proposalRows.map(row => ({
+      id: row.id,
+      relationId: row.relation_id,
+      proposerId: row.proposer_user_id === user.id ? "me" : row.proposer_user_id,
+      proposerName: row.proposer_user_id === user.id ? (profile?.name || "我") : (row.proposer_name || "朋友"),
+      candidateLabel: row.candidate_label,
+      status: row.status,
+      inviteCode: row.status === "approved" ? row.invite_code : "",
+      userVote: typeof row.user_vote === "boolean" ? row.user_vote : null,
+      approvalCount: Number(row.approval_count || 0),
+      memberCount: Number(row.member_count || 0),
+      createdAt: new Date(row.created_at).toISOString()
+    })),
     people: [...peopleById.values()],
     incomingIds: incomingRows.map(row => row.id),
     incomingEvents,
+    incomingLatestAt: latestIso(incomingRows, "created_at"),
     responseIds: responseRows.map(row => row.id),
+    responseLatestAt: latestIso(responseRows, "responded_at"),
     responseSignature: responseRows
       .map(row => `${row.event_id}:${row.id}:${new Date(row.responded_at).toISOString()}`)
       .sort()
@@ -150,16 +232,39 @@ async function saveProfile(user, body) {
   return json(await readState(user));
 }
 
+async function uniqueInviteCode(sql) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const candidate = newInviteCode();
+    const relationMatches = await sql`SELECT id FROM relations WHERE invite_code = ${candidate} LIMIT 1`;
+    const proposalMatches = await sql`SELECT id FROM member_invite_proposals WHERE invite_code = ${candidate} LIMIT 1`;
+    if (!relationMatches.length && !proposalMatches.length) return candidate;
+  }
+  return "";
+}
+
+async function resolveInvite(sql, code) {
+  const proposalRows = await sql`SELECT proposal.id AS proposal_id, proposal.relation_id,
+      proposal.invite_code, proposal.candidate_label
+    FROM member_invite_proposals proposal
+    WHERE proposal.invite_code = ${code} AND proposal.status = 'approved'
+    LIMIT 1`;
+  if (proposalRows.length) return proposalRows[0];
+
+  const relationRows = await sql`SELECT relation.id AS relation_id, relation.invite_code,
+      (SELECT COUNT(*)::INT FROM relation_members members
+        WHERE members.relation_id = relation.id) AS member_count
+    FROM relations relation
+    WHERE relation.invite_code = ${code}
+    LIMIT 1`;
+  if (!relationRows.length || Number(relationRows[0].member_count) > 1) return null;
+  return { ...relationRows[0], proposal_id: null, candidate_label: "" };
+}
+
 async function createRelation(user, body) {
   const sql = database();
   const note = cleanText(body.note, 24);
   if (!note) return json({ ok: false, message: "给这段关系写个名字" }, 400);
-  let inviteCode;
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const candidate = newInviteCode();
-    const existing = await sql`SELECT id FROM relations WHERE invite_code = ${candidate} LIMIT 1`;
-    if (!existing.length) { inviteCode = candidate; break; }
-  }
+  const inviteCode = await uniqueInviteCode(sql);
   if (!inviteCode) return json({ ok: false, message: "邀请码生成失败，请重试" }, 503);
   const relationId = newId();
   await sql`INSERT INTO relations (id, creator_user_id, invite_code) VALUES (${relationId}, ${user.id}, ${inviteCode})`;
@@ -171,17 +276,19 @@ async function createRelation(user, body) {
 async function previewInvite(user, body) {
   const sql = database();
   const code = cleanText(body.code, 10).toUpperCase();
-  const rows = await sql`SELECT id, invite_code FROM relations WHERE invite_code = ${code} LIMIT 1`;
-  if (!rows.length) return json({ ok: false, message: "这个邀请码不可用" }, 404);
-  const members = await relationMembers(rows[0].id);
+  const invite = await resolveInvite(sql, code);
+  if (!invite) return json({ ok: false, message: "这个邀请码不可用，可能还在等待大家确认" }, 404);
+  const members = await relationMembers(invite.relation_id);
   if (members.some(member => member.id === user.id)) {
     return json({ ok: false, ownInvite: true, message: "这是你自己的邀请，发给朋友就好" }, 409);
   }
   return json({
     ok: true,
     preview: {
-      id: rows[0].id,
-      inviteCode: rows[0].invite_code,
+      id: invite.relation_id,
+      proposalId: invite.proposal_id,
+      candidateLabel: invite.candidate_label,
+      inviteCode: invite.invite_code,
       members: members.map(member => publicPerson(member))
     }
   });
@@ -190,14 +297,18 @@ async function previewInvite(user, body) {
 async function acceptInvite(user, body) {
   const sql = database();
   const code = cleanText(body.code, 10).toUpperCase();
-  const rows = await sql`SELECT id FROM relations WHERE invite_code = ${code} LIMIT 1`;
-  if (!rows.length) return json({ ok: false, message: "这个邀请码不可用" }, 404);
-  const members = await relationMembers(rows[0].id);
+  const invite = await resolveInvite(sql, code);
+  if (!invite) return json({ ok: false, message: "这个邀请码不可用，可能还在等待大家确认" }, 404);
+  const members = await relationMembers(invite.relation_id);
   const ownerName = members[0]?.name || "朋友";
   const joined = await sql`INSERT INTO relation_members (relation_id, user_id, note)
-    VALUES (${rows[0].id}, ${user.id}, ${`和${ownerName}`})
+    VALUES (${invite.relation_id}, ${user.id}, ${`和${ownerName}`})
     ON CONFLICT (relation_id, user_id) DO NOTHING
     RETURNING relation_id`;
+  if (joined.length && invite.proposal_id) {
+    await sql`UPDATE member_invite_proposals SET status = 'accepted', updated_at = NOW()
+      WHERE id = ${invite.proposal_id} AND status = 'approved'`;
+  }
   if (joined.length) {
     const joinedProfile = await profileFor(user.id);
     await sendPushToUsers(
@@ -206,13 +317,13 @@ async function acceptInvite(user, body) {
       {
         title: "新朋友到位",
         body: `${joinedProfile?.name || "朋友"}加入了你们。`,
-        tag: `relation-${rows[0].id}`,
+        tag: `relation-${invite.relation_id}`,
         url: "/?from=relation-notification"
       }
     );
   }
   const state = await readState(user);
-  return json({ ...state, relationId: rows[0].id });
+  return json({ ...state, relationId: invite.relation_id });
 }
 
 async function updateRelation(user, body) {
@@ -227,6 +338,147 @@ async function updateRelation(user, body) {
   if (!note) return json({ ok: false, message: "关系备注不能为空" }, 400);
   await sql`UPDATE relation_members SET note = ${note}, receive = ${receive}, send = ${send}
     WHERE relation_id = ${relationId} AND user_id = ${user.id}`;
+  return json(await readState(user));
+}
+
+async function updateMemberSettings(user, body) {
+  const sql = database();
+  const memberId = cleanText(body.memberId, 40);
+  if (!memberId || memberId === user.id) return json({ ok: false, message: "没有找到这位成员" }, 400);
+  const shared = await sql`SELECT 1
+    FROM relation_members mine
+    JOIN relation_members other ON other.relation_id = mine.relation_id
+    WHERE mine.user_id = ${user.id} AND other.user_id = ${memberId}
+    LIMIT 1`;
+  if (!shared.length) return json({ ok: false, message: "你们已经不在同一段关系里" }, 404);
+  const note = cleanText(body.note, 12);
+  const receive = body.receive !== false;
+  const send = body.send !== false;
+  await sql`INSERT INTO member_signal_settings (user_id, other_user_id, note, receive, send, updated_at)
+    VALUES (${user.id}, ${memberId}, ${note}, ${receive}, ${send}, NOW())
+    ON CONFLICT (user_id, other_user_id) DO UPDATE SET
+      note = EXCLUDED.note,
+      receive = EXCLUDED.receive,
+      send = EXCLUDED.send,
+      updated_at = NOW()`;
+  return json(await readState(user));
+}
+
+async function createMemberProposal(user, body) {
+  const sql = database();
+  const relationId = cleanText(body.relationId, 40);
+  const candidateLabel = cleanText(body.candidateLabel, 12);
+  if (!candidateLabel) return json({ ok: false, message: "先写下朋友的称呼" }, 400);
+  const membership = await sql`SELECT 1 FROM relation_members
+    WHERE relation_id = ${relationId} AND user_id = ${user.id} LIMIT 1`;
+  if (!membership.length) return json({ ok: false, message: "没有找到这段关系" }, 404);
+  const existing = await sql`SELECT id, status FROM member_invite_proposals
+    WHERE relation_id = ${relationId} AND proposer_user_id = ${user.id}
+      AND LOWER(candidate_label) = LOWER(${candidateLabel})
+      AND status IN ('pending', 'approved')
+    ORDER BY created_at DESC LIMIT 1`;
+  if (existing.length) {
+    const state = await readState(user);
+    return json({ ...state, proposalId: existing[0].id });
+  }
+
+  const proposalId = newId();
+  await sql`INSERT INTO member_invite_proposals
+      (id, relation_id, proposer_user_id, candidate_label, status)
+    VALUES (${proposalId}, ${relationId}, ${user.id}, ${candidateLabel}, 'pending')`;
+  await sql`INSERT INTO member_invite_votes (proposal_id, voter_user_id, approved)
+    VALUES (${proposalId}, ${user.id}, TRUE)`;
+
+  const members = await relationMembers(relationId);
+  if (members.length <= 1) {
+    const inviteCode = await uniqueInviteCode(sql);
+    if (!inviteCode) return json({ ok: false, message: "邀请码生成失败，请重试" }, 503);
+    await sql`UPDATE member_invite_proposals
+      SET status = 'approved', invite_code = ${inviteCode}, updated_at = NOW()
+      WHERE id = ${proposalId}`;
+  } else {
+    const proposer = await profileFor(user.id);
+    await sendPushToUsers(
+      members.map(member => member.id).filter(id => id !== user.id),
+      "relation",
+      {
+        title: "有一份新邀请",
+        body: `${proposer?.name || "朋友"}想叫上${candidateLabel}。`,
+        tag: `proposal-${proposalId}`,
+        url: `/?from=proposal&proposal=${proposalId}`
+      }
+    );
+  }
+  const state = await readState(user);
+  return json({ ...state, proposalId });
+}
+
+async function voteMemberProposal(user, body) {
+  const sql = database();
+  const proposalId = cleanText(body.proposalId, 40);
+  const approved = body.approved === true;
+  const proposalRows = await sql`SELECT proposal.id, proposal.relation_id, proposal.proposer_user_id,
+      proposal.candidate_label, proposal.status
+    FROM member_invite_proposals proposal
+    JOIN relation_members membership ON membership.relation_id = proposal.relation_id
+      AND membership.user_id = ${user.id}
+    WHERE proposal.id = ${proposalId}
+    LIMIT 1`;
+  if (!proposalRows.length) return json({ ok: false, message: "这份邀请已经不存在" }, 404);
+  const proposal = proposalRows[0];
+  if (proposal.status !== "pending") return json(await readState(user));
+
+  await sql`INSERT INTO member_invite_votes (proposal_id, voter_user_id, approved, voted_at)
+    VALUES (${proposalId}, ${user.id}, ${approved}, NOW())
+    ON CONFLICT (proposal_id, voter_user_id) DO UPDATE SET
+      approved = EXCLUDED.approved,
+      voted_at = NOW()`;
+
+  let nextStatus = "pending";
+  if (!approved) {
+    nextStatus = "rejected";
+    await sql`UPDATE member_invite_proposals SET status = 'rejected', updated_at = NOW()
+      WHERE id = ${proposalId} AND status = 'pending'`;
+  } else {
+    const counts = await sql`SELECT
+        (SELECT COUNT(*)::INT FROM relation_members members
+          WHERE members.relation_id = ${proposal.relation_id}) AS member_count,
+        (SELECT COUNT(*)::INT FROM member_invite_votes votes
+          JOIN relation_members members ON members.relation_id = ${proposal.relation_id}
+            AND members.user_id = votes.voter_user_id
+          WHERE votes.proposal_id = ${proposalId} AND votes.approved = TRUE) AS approval_count`;
+    if (Number(counts[0]?.member_count || 0) === Number(counts[0]?.approval_count || 0)) {
+      const inviteCode = await uniqueInviteCode(sql);
+      if (!inviteCode) return json({ ok: false, message: "邀请码生成失败，请重试" }, 503);
+      nextStatus = "approved";
+      await sql`UPDATE member_invite_proposals
+        SET status = 'approved', invite_code = ${inviteCode}, updated_at = NOW()
+        WHERE id = ${proposalId} AND status = 'pending'`;
+    }
+  }
+
+  if (nextStatus !== "pending") {
+    await sendPushToUsers([proposal.proposer_user_id], "relation", {
+      title: nextStatus === "approved" ? "邀请可以发出了" : "这次邀请没有继续",
+      body: nextStatus === "approved"
+        ? `大家都同意叫上${proposal.candidate_label}。`
+        : `关于${proposal.candidate_label}的邀请已结束。`,
+      tag: `proposal-result-${proposalId}`,
+      url: `/?from=proposal-result&proposal=${proposalId}`
+    });
+  }
+  return json(await readState(user));
+}
+
+async function withdrawMemberProposal(user, body) {
+  const sql = database();
+  const proposalId = cleanText(body.proposalId, 40);
+  const rows = await sql`UPDATE member_invite_proposals
+    SET status = 'withdrawn', invite_code = NULL, updated_at = NOW()
+    WHERE id = ${proposalId} AND proposer_user_id = ${user.id}
+      AND status IN ('pending', 'approved', 'rejected')
+    RETURNING relation_id`;
+  if (!rows.length) return json({ ok: false, message: "这份邀请已经不能撤回" }, 409);
   return json(await readState(user));
 }
 
@@ -268,7 +520,19 @@ async function sendDrink(user, body) {
     FROM relation_members mine
     JOIN relation_members other ON other.relation_id = mine.relation_id
     WHERE mine.user_id = ${user.id} AND mine.send = TRUE
-      AND other.user_id <> ${user.id} AND other.receive = TRUE`;
+      AND other.user_id <> ${user.id} AND other.receive = TRUE
+      AND NOT EXISTS (
+        SELECT 1 FROM member_signal_settings mine_setting
+        WHERE mine_setting.user_id = ${user.id}
+          AND mine_setting.other_user_id = other.user_id
+          AND mine_setting.send = FALSE
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM member_signal_settings other_setting
+        WHERE other_setting.user_id = other.user_id
+          AND other_setting.other_user_id = ${user.id}
+          AND other_setting.receive = FALSE
+      )`;
   const eligibleIds = eligible.map(row => row.id);
   const recipientIds = requested.length ? eligibleIds.filter(id => requested.includes(id)) : eligibleIds;
   if (!recipientIds.length) return json({ ok: true, shared: false });
@@ -301,6 +565,7 @@ async function respondDrink(user, body) {
         AND target.recipient_user_id = ${user.id}
         AND event.sender_user_id = ${senderId}
         AND target.responded_at IS NULL
+        AND event.created_at > NOW() - INTERVAL '45 minutes'
       RETURNING target.event_id`;
     if (updated.length) respondedSenderIds.push(senderId);
   }
@@ -331,6 +596,10 @@ export default {
         previewInvite,
         acceptInvite,
         updateRelation,
+        updateMemberSettings,
+        createMemberProposal,
+        voteMemberProposal,
+        withdrawMemberProposal,
         removeRelation,
         deleteAccount,
         sendDrink,
