@@ -220,6 +220,64 @@ await vm.runInContext(`
 `, context);
 console.log("PASS 旧提醒不回弹、新提醒仍即时出现检查");
 
+await vm.runInContext(`
+  (async () => {
+    authAccount = { id: "user-me", email: "me@example.com" };
+    cloudDataAvailable = true;
+    state.page = null;
+    state.activeTab = "drink";
+    state.homeMode = "incoming";
+    state.selectorOpen = true;
+    state.selectedIds = ["ming"];
+    incomingIds = ["ming", "hong", "liang"];
+
+    applyServerState({
+      ok: true,
+      profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+      people: [], relations: [],
+      incomingIds: ["ming", "hong", "liang"],
+      incomingEvents: { ming: "drink-1", hong: "drink-2", liang: "drink-3" },
+      responseIds: [], responseSignature: ""
+    }, { chooseHomeMode: true });
+    if (state.selectedIds.join(",") !== "ming") {
+      throw new Error("选择回应对象时，后台同步不应重新勾选已取消的人");
+    }
+
+    syncServerState = async options => applyServerState({
+      ok: true,
+      profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+      people: [], relations: [],
+      incomingIds: ["ming", "hong", "liang"],
+      incomingEvents: { ming: "drink-1", hong: "drink-2", liang: "drink-3" },
+      responseIds: ["hong"], responseSignature: "drink-0:hong:2026-09-04T08:00:00.000Z"
+    }, options);
+    await handleForegroundPush({ type: "genyikou-push", category: "response" });
+    if (!state.selectorOpen || state.homeMode !== "incoming" || state.selectedIds.join(",") !== "ming") {
+      throw new Error("选择回应对象时，新推送不应打断选择或改动勾选结果");
+    }
+
+    let submittedIds = [];
+    showToast = () => {};
+    appRequest = async (action, payload) => {
+      if (action !== "respondDrink") throw new Error("回应时调用了错误的接口");
+      submittedIds = [...payload.senderIds];
+      return {
+        ok: true,
+        profile: { name: "小满", cupId: "cup-01", colors: cupById["cup-01"].defaults },
+        people: [], relations: [],
+        incomingIds: ["hong", "liang"],
+        incomingEvents: { hong: "drink-2", liang: "drink-3" },
+        responseIds: [], responseSignature: ""
+      };
+    };
+    await confirmFollow();
+    if (submittedIds.join(",") !== "ming") {
+      throw new Error("确认跟一口时只能提交仍被勾选的人");
+    }
+  })()
+`, context);
+console.log("PASS 长按选择只回应已勾选对象检查");
+
 let prefersReducedMotion = false;
 const motionProbe = { paused: false, cssPaused: false, time: 10 };
 context.matchMedia = () => ({ matches: prefersReducedMotion });

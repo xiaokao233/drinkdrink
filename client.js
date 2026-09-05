@@ -760,6 +760,8 @@ function unignoredIncomingIds() {
 
 function applyServerState(result, { chooseHomeMode = false } = {}) {
   if (!result?.ok) return false;
+  const selectionWasOpen = state.selectorOpen;
+  const selectedBeforeSync = new Set(state.selectedIds);
   if (result.profile && cupById[result.profile.cupId]) {
     people.me.name = String(result.profile.name || people.me.name);
     people.me.cupId = result.profile.cupId;
@@ -787,11 +789,16 @@ function applyServerState(result, { chooseHomeMode = false } = {}) {
     state.responseIds = serverResponseIds;
     currentResponseSignature = serverResponseSignature;
   }
-  state.selectedIds = [...incomingIds];
+  const selectableIncomingIds = availableIncomingIds();
+  // Background sync must not silently re-select people the user just unchecked.
+  // A new reminder arriving while the chooser is open starts unchecked as well.
+  state.selectedIds = selectionWasOpen
+    ? selectableIncomingIds.filter(id => selectedBeforeSync.has(id))
+    : [...selectableIncomingIds];
   if (!state.relations.some(relation => relation.id === state.selectedRelationId)) {
     state.selectedRelationId = state.relations[0]?.id || null;
   }
-  if (chooseHomeMode && !state.page && state.activeTab === "drink") {
+  if (chooseHomeMode && !state.selectorOpen && !state.page && state.activeTab === "drink") {
     if (serverResponseSignature && serverResponseSignature !== acknowledgedResponseSignature()) state.homeMode = "responded";
     else if (unignoredIncomingIds().length) state.homeMode = "incoming";
     else if (state.homeMode === "incoming") state.homeMode = "calm";
@@ -1075,6 +1082,12 @@ async function handleForegroundPush(message) {
       : "";
     const incomingIsNew = unignoredIncomingIds().length
       && (!messageEventId || !ignoredIncomingEventIds.has(String(messageEventId)));
+    // Keep an in-progress recipient choice stable. The synced people remain
+    // visible in the chooser, but a push must not close it or select everyone.
+    if (state.selectorOpen) {
+      render();
+      return true;
+    }
     if (message.category === "drink" && incomingIsNew) {
       state.page = null;
       state.pageHistory = [];
@@ -1082,7 +1095,7 @@ async function handleForegroundPush(message) {
       state.homeMode = "incoming";
       state.selectorOpen = false;
       state.demoPanel = false;
-      state.selectedIds = [...incomingIds];
+      state.selectedIds = [...availableIncomingIds()];
     } else if (message.category === "response" && state.responseIds.length) {
       state.page = null;
       state.pageHistory = [];
@@ -1094,7 +1107,7 @@ async function handleForegroundPush(message) {
     render();
     return true;
   } catch {
-    // The 30-second sync remains as a fallback for a momentary network failure.
+    // The five-second sync remains as a fallback for a momentary network failure.
     return false;
   }
 }
@@ -2034,7 +2047,7 @@ function bindEvents() {
       state.activeTab = "drink";
       state.demoPanel = false;
       state.selectorOpen = false;
-      state.selectedIds = [...incomingIds];
+      state.selectedIds = [...availableIncomingIds()];
       render();
     });
   });
@@ -2284,7 +2297,7 @@ async function handleAction(event) {
   }
   else if (action === "close-selector") {
     state.selectorOpen = false;
-    state.selectedIds = [...incomingIds];
+    state.selectedIds = [...availableIncomingIds()];
   }
   else if (action === "create-relation") {
     state.draftRelationNote = "";
