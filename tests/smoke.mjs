@@ -79,6 +79,7 @@ assert(worker.includes('addEventListener("fetch"') && worker.includes("CACHE_NAM
 assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
 assert(styles.includes("#55d8ff") && styles.includes("#4fe1ce"), "清透色卡没有接入页面");
 assert(styles.includes("--safe-top") && styles.includes("safe-area-inset-top") && styles.includes("--app-height: 100dvh") && script.includes("syncAppViewportHeight") && script.includes("visualViewport") && !styles.includes("min-height: 610px"), "移动端全屏高度与安全区适配缺失");
+assert(styles.includes(".bottom-nav { bottom: 0; }") && styles.includes("bottom: 82px;"), "移动端底部导航应贴紧屏幕底边且内容区应正确避让");
 assert(!script.includes("stats-grid") && !script.includes("history-card"), "Demo 中不应出现饮水统计或历史压力");
 
 const functionIcons = ["back", "next", "create", "join", "edit", "bell", "install", "copy", "close", "leave", "delete", "check", "email", "data"];

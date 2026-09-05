@@ -517,7 +517,7 @@ button { color: inherit; }
   .app-header { padding-top: max(18px, var(--safe-top)); height: max(59px, calc(var(--safe-top) + 43px)); }
   .screen-content {
     top: max(59px, calc(var(--safe-top) + 43px));
-    bottom: calc(82px + var(--safe-bottom));
+    bottom: 82px;
   }
   .screen--nested .screen-content {
     bottom: 0;
@@ -1076,7 +1076,7 @@ button { color: inherit; }
 }
 
 @media (max-width: 860px) {
-  .bottom-nav { bottom: max(6px, var(--safe-bottom)); }
+  .bottom-nav { bottom: 0; }
 }
 .nav-item { color: var(--ink-dark); }
 .nav-item::before {
