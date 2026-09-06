@@ -2,13 +2,14 @@ import fs from "node:fs";
 
 const baseUrl = "http://127.0.0.1:4173";
 
-const [pageResponse, scriptResponse, workerResponse, stylesResponse, manifestResponse, fontResponse, cupAssetResponse, navAssetResponse, appIconResponse, appleIconResponse] = await Promise.all([
+const [pageResponse, scriptResponse, workerResponse, stylesResponse, manifestResponse, fontResponse, compactFontResponse, cupAssetResponse, navAssetResponse, appIconResponse, appleIconResponse] = await Promise.all([
   fetch(`${baseUrl}/`),
   fetch(`${baseUrl}/client.js`),
   fetch(`${baseUrl}/sw.js`),
   fetch(`${baseUrl}/styles.css`),
   fetch(`${baseUrl}/manifest.webmanifest`),
   fetch(`${baseUrl}/assets/fonts/MaokenAssortedSans.ttf`),
+  fetch(`${baseUrl}/assets/fonts/MaokenAssortedSans.woff2`),
   fetch(`${baseUrl}/assets/cups/cup-01-body.png`),
   fetch(`${baseUrl}/assets/nav/drink.png`),
   fetch(`${baseUrl}/assets/app-icons/app-icon-512.png`),
@@ -26,6 +27,7 @@ assert(stylesResponse.ok, `样式加载失败：${stylesResponse.status}`);
 assert(manifestResponse.ok, `应用清单加载失败：${manifestResponse.status}`);
 assert(fontResponse.ok, `猫啃什锦黑加载失败：${fontResponse.status}`);
 assert(fontResponse.headers.get("content-type")?.includes("font/ttf"), "字体 MIME 类型不正确");
+assert(compactFontResponse.ok, `安装版字体加载失败：${compactFontResponse.status}`);
 assert(cupAssetResponse.ok && cupAssetResponse.headers.get("content-type")?.includes("image/png"), "杯型分层素材加载失败");
 assert(navAssetResponse.ok && navAssetResponse.headers.get("content-type")?.includes("image/png"), "底部导航素材加载失败");
 assert(appIconResponse.ok && appIconResponse.headers.get("content-type")?.includes("image/png"), "App 安装图标加载失败");
@@ -41,9 +43,11 @@ const [html, script, worker, styles, manifestText] = await Promise.all([
 
 assert(html.includes('id="app"'), "页面缺少应用入口");
 assert(html.includes('rel="apple-touch-icon"') && html.includes('favicon-32.png'), "网页缺少 App 图标声明");
+assert(html.includes('rel="preload"') && html.includes("MaokenAssortedSans.woff2"), "安装版没有优先加载手写字体");
 assert(html.includes('apple-mobile-web-app-status-bar-style') && html.includes('black-translucent'), "iPhone 沉浸式状态栏配置缺失");
 const manifest = JSON.parse(manifestText);
 assert(manifest.icons?.some(icon => icon.sizes === "192x192") && manifest.icons?.some(icon => icon.sizes === "512x512" && icon.purpose === "maskable"), "应用清单缺少标准与可裁切图标");
+assert(manifest.display === "fullscreen" && manifest.display_override?.includes("standalone"), "安装版没有优先使用全屏显示模式");
 assert(script.includes("data-hold-follow"), "长按“跟一口”入口缺失");
 assert(script.includes("incoming-strip"), "待回应滑动条缺失");
 assert(script.includes("我喝了") && script.includes("跟一口"), "两种核心信号缺失");
@@ -54,7 +58,7 @@ assert(styles.includes("calm-cup-idle") && styles.includes("calm-shadow-breathe"
 assert(styles.includes("sent-cup-idle") && styles.includes(".hero-cup--sending .cup-art"), "喝过了页面的主体杯持续动效缺失");
 assert(styles.includes("clink-cup-idle") && styles.includes("clink-blob-breathe") && styles.includes("ray-afterglow"), "朋友回应后的持续动效缺失");
 assert(script.includes("--idle-duration") && script.includes("--idle-delay"), "多杯待机动效没有错开节奏");
-assert(styles.includes("Maoken Assorted Sans"), "猫啃什锦黑没有接入页面");
+assert(styles.includes("Maoken Assorted Sans") && styles.includes("MaokenAssortedSans.woff2") && styles.includes("font-synthesis: weight"), "手写字体没有以稳定的安装版格式接入页面");
 assert(script.includes('"relation-detail"') && script.includes('"member-detail"'), "关系与成员详情流程缺失");
 assert(script.includes('"proposal-confirm"') && script.includes('"invite-ready"'), "新增成员确认流程缺失");
 assert(script.includes('"notification-settings"') && script.includes('"delete-final"'), "设置与注销流程缺失");
@@ -78,7 +82,7 @@ assert(worker.includes("postMessage") && worker.includes("genyikou-push"), "Serv
 assert(worker.includes('addEventListener("fetch"') && worker.includes("CACHE_NAME") && worker.includes("APP_SHELL"), "安卓安装识别与离线外壳缺失");
 assert(script.includes("nav-sketch-icon"), "底部手绘图标没有接入");
 assert(styles.includes("#55d8ff") && styles.includes("#4fe1ce"), "清透色卡没有接入页面");
-assert(styles.includes("--safe-top") && styles.includes("safe-area-inset-top") && styles.includes("--app-height: 100dvh") && script.includes("syncAppViewportHeight") && script.includes("visualViewport") && !styles.includes("min-height: 610px"), "移动端全屏高度与安全区适配缺失");
+assert(styles.includes("--safe-top") && styles.includes("safe-area-inset-top") && styles.includes("--app-height: 100dvh") && script.includes("syncAppViewportHeight") && script.includes("window.screen?.height") && !styles.includes("min-height: 610px"), "移动端全屏高度与安全区适配缺失");
 assert(styles.includes(".bottom-nav { bottom: 0; }") && styles.includes("bottom: 82px;"), "移动端底部导航应贴紧屏幕底边且内容区应正确避让");
 assert(!script.includes("stats-grid") && !script.includes("history-card"), "Demo 中不应出现饮水统计或历史压力");
 

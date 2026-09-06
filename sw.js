@@ -1,4 +1,4 @@
-self.__GENYIKOU_CACHE_VERSION__ = "v1";
+self.__GENYIKOU_CACHE_VERSION__ = "v2-font-fullscreen";
 const CACHE_NAME = `genyikou-shell-${self.__GENYIKOU_CACHE_VERSION__}`;
 const APP_SHELL = [
   "/",
@@ -6,7 +6,7 @@ const APP_SHELL = [
   "/client.js",
   "/styles.css",
   "/manifest.webmanifest",
-  "/assets/fonts/MaokenAssortedSans.ttf",
+  "/assets/fonts/MaokenAssortedSans.woff2",
   "/assets/app-icons/app-icon-192.png",
   "/assets/app-icons/app-icon-512.png"
 ];

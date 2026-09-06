@@ -1,6 +1,8 @@
 @font-face {
   font-family: "Maoken Assorted Sans";
-  src: url("/assets/fonts/MaokenAssortedSans.ttf") format("truetype");
+  src:
+    url("/assets/fonts/MaokenAssortedSans.woff2") format("woff2"),
+    url("/assets/fonts/MaokenAssortedSans.ttf") format("truetype");
   font-display: swap;
   font-style: normal;
   font-weight: 400;
@@ -24,11 +26,11 @@
   --app-height: 100vh;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --font-hand: "Maoken Assorted Sans", "KaiTi", "STKaiti", sans-serif;
+  --font-hand: "Maoken Assorted Sans", "Kaiti SC", "STKaiti", "KaiTi", cursive, sans-serif;
   font-family: var(--font-hand);
   color: var(--ink-dark);
   background: #eefaff;
-  font-synthesis: none;
+  font-synthesis: weight;
 }
 
 * { box-sizing: border-box; }
@@ -1173,12 +1175,13 @@ button { color: inherit; }
 .login-stripes {
   --stripe-height: 8px;
   --stripe-step: 52px;
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   overflow: hidden;
   background: #fff;
 }
+.login-page > :not(.login-stripes) { position: relative; z-index: 1; }
 .login-stripes i {
   position: absolute;
   inset: 0;

@@ -1311,7 +1311,20 @@ function render(markup = screenMarkup()) {
 
 function syncAppViewportHeight() {
   if (typeof window === "undefined" || typeof document === "undefined") return;
-  const height = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+  const visualHeight = window.visualViewport
+    ? window.visualViewport.height + Math.max(0, window.visualViewport.offsetTop || 0)
+    : 0;
+  const installed = Boolean(
+    window.navigator?.standalone
+    || window.matchMedia?.("(display-mode: standalone)")?.matches
+    || window.matchMedia?.("(display-mode: fullscreen)")?.matches
+  );
+  const height = Math.round(Math.max(
+    document.documentElement?.clientHeight || 0,
+    window.innerHeight || 0,
+    visualHeight,
+    installed ? window.screen?.height || 0 : 0
+  ));
   if (height > 0) document.documentElement?.style?.setProperty("--app-height", `${height}px`);
 }
 
