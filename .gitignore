@@ -14,6 +14,29 @@ test-results/
 playwright-report/
 screenshots/
 
+# Local user research and production data exports
+数据导出/
+*评论数据*.xlsx
+
+# Local design-source archives (processed runtime assets live in assets/)
+/杯子身份素材/
+/新杯子身份素材/
+/底部导航图标/
+/功能小图标/
+/app图标/
+
+# Superseded root-level planning exports (curated versions live in docs/)
+/prd.doc
+/mermaid-diagram.svg
+/跟一口_User Flow_V0.1.docx
+/跟一口_产品决策记录_QA_V0.1.docx
+/跟一口_页面与状态清单_V0.1.docx
+
+# Local portfolio working files
+/genyikou_portfolio_dashboard_*.html
+/推文宣传/*
+!/推文宣传/05540b643710ead4627d963a77e8ddf2.png
+
 # Editor and operating-system files
 .DS_Store
 Thumbs.db
